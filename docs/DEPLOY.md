@@ -14,7 +14,7 @@ The four front-panel buttons are not used for Pico BOOT, but **are** used to exp
 | Method | How |
 |--------|-----|
 | **Four buttons** | Hold **all four** front buttons, plug USB, keep holding until **LUMAFADER** mounts and the rainbow startup finishes (often ~5–8 s). **Red blink ×3** then rainbow = config mode. Edit `settings.json`, eject from the host, then **hard reset** (unplug/replug, no buttons) for normal MIDI-only mode. |
-| **Web Serial** | Browser config UI over USB serial (`CMD:` / `RSP:` in `serial_config.py`). No drive mount; restart after save. |
+| **Web Serial** | Open `docs/web_config.html` in Chrome/Edge → Connect → edit → Save. Same `CMD:` / `RSP:` protocol as stock LumaFader (`serial_config.py`). Hard-reset after save. |
 | **Deploy script** | `python3 scripts/deploy.py` — copies `src/` including `settings.json` over mpremote. |
 
 **Config boot notes:** Enabling the USB drive in `boot.py` may **re-enumerate USB** once (you might see startup twice — keep all four buttons held through plug-in). **After eject**, macOS often triggers a **soft reload** (`code.py` only; `boot.py` does not run). The drive will **not** remount until the next four-button hard reset; MIDI should still work. Eject should **not** repeat the red config blink (firmware clears a one-shot NVM flag after the first startup animation).

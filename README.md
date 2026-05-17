@@ -25,6 +25,8 @@ python3 scripts/deploy.py
 
 No `/Volumes` mount required. See [docs/DEPLOY.md](docs/DEPLOY.md) for the full picture.
 
+**Web config:** open [`docs/web_config.html`](docs/web_config.html) in Chrome or Edge (Web Serial), connect, edit, save, then hard-reset the device.
+
 **Edit settings on the device:** hold **all four front buttons** while plugging in USB → red blink ×3, then rainbow → **LUMAFADER** mounts. Edit `settings.json`, eject, then **hard-reset** (unplug/replug, no buttons) for normal mode. See [docs/DEPLOY.md](docs/DEPLOY.md). Routine deploy: `python3 scripts/deploy.py`.
 
 ### First-time install

@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LumaFader Bitwig — Web Config</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            background: #f3f2ee;
+            color: #2a3a5a;
+            min-height: 100vh;
+            padding: 20px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        h1 {
+            text-align: center;
+            font-size: 18px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #1a2a4a;
+        }
+        .subtitle {
+            text-align: center;
+            color: #7a8aaa;
+            font-size: 11px;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            margin: 4px 0 20px;
+        }
+        .container { max-width: 920px; margin: 0 auto; }
+        .connection-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        button {
+            font-family: inherit;
+            background: transparent;
+            color: #2a4a7a;
+            border: 1.5px solid #4a6a9a;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        button:hover { background: rgba(42, 74, 122, 0.06); }
+        button:disabled { opacity: 0.35; cursor: not-allowed; }
+        button.primary { background: #2a4a7a; color: #fff; }
+        button.primary:hover { background: #1a3a6a; }
+        button.learn.active { border-color: #c05030; color: #c05030; }
+        .status {
+            padding: 4px 12px;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            border: 1px solid;
+        }
+        .status.connected { color: #1a8a1a; border-color: #1a8a1a; }
+        .status.disconnected { color: #c05030; border-color: #c05030; }
+        .instructions {
+            border: 1px solid #b0bcd0;
+            background: #fff;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+        }
+        .instructions.hidden { display: none; }
+        .instructions h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #3a5a8a;
+            margin-bottom: 8px;
+        }
+        .instructions ol { padding-left: 18px; color: #4a6090; font-size: 12px; }
+        .instructions li { margin-bottom: 4px; }
+        .section {
+            border: 1.5px solid #4a6a9a;
+            background: #fff;
+            padding: 16px 18px;
+            margin-bottom: 14px;
+            box-shadow: -4px 4px 0 rgba(30, 50, 80, 0.12);
+        }
+        .section h2 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #3a5a8a;
+            border-bottom: 1px dashed #b0bcd0;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
+        }
+        .section.collapsed .section-body { display: none; }
+        .section-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .section-toggle h2 { border: none; margin: 0; padding: 0; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        @media (max-width: 700px) {
+            .grid-2, .grid-4 { grid-template-columns: 1fr 1fr; }
+        }
+        label {
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #7a8aaa;
+            margin-bottom: 4px;
+        }
+        .field { margin-bottom: 10px; }
+        input[type="number"], input[type="text"], select {
+            width: 100%;
+            padding: 5px 8px;
+            border: 1px solid #8a9ab8;
+            background: transparent;
+            font-family: inherit;
+            font-size: 12px;
+            color: #2a3a5a;
+        }
+        input:focus, select:focus { outline: none; border-color: #2a4a7a; }
+        .cc-row {
+            display: grid;
+            grid-template-columns: 48px 1fr 56px;
+            gap: 8px;
+            align-items: end;
+            margin-bottom: 8px;
+        }
+        .cc-row span.fader-label { font-size: 11px; color: #5a6a8a; padding-bottom: 6px; }
+        .binding-card {
+            border: 1px solid #d0d8e8;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+        .binding-card .binding-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #2a4a7a;
+            margin-bottom: 8px;
+        }
+        .binding-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: end;
+        }
+        .binding-fields .field { margin: 0; min-width: 100px; }
+        .live-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+            font-size: 11px;
+        }
+        .live-panel .live-item {
+            border: 1px solid #d0d8e8;
+            padding: 6px 8px;
+        }
+        .live-panel .live-label { color: #7a8aaa; font-size: 9px; text-transform: uppercase; }
+        .live-panel .live-value { color: #1a2a4a; margin-top: 2px; }
+        .slider-bars {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .slider-bar-wrap label { text-align: center; }
+        .slider-track {
+            height: 80px;
+            background: #eae9e5;
+            border: 1px solid #b0bcd0;
+            position: relative;
+        }
+        .slider-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #4a6a9a;
+            transition: height 0.05s;
+        }
+        #settingsForm { display: none; }
+        #settingsForm.loaded { display: block; }
+        #loadingMsg { text-align: center; color: #7a8aaa; padding: 24px; }
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 12px;
+            border: 1px solid;
+            background: #fff;
+            z-index: 100;
+            display: none;
+        }
+        .toast.show { display: block; }
+        .toast.success { color: #1a8a1a; border-color: #1a8a1a; }
+        .toast.error { color: #c05030; border-color: #c05030; }
+        .user-grid-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+        .user-grid-tabs button { padding: 4px 10px; font-size: 10px; }
+        .user-grid-tabs button.active { background: #2a4a7a; color: #fff; }
+        .hint { font-size: 10px; color: #7a8aaa; margin-top: 6px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LumaFader Bitwig</h1>
+        <p class="subtitle">Web Config · Protocol v2</p>
+
+        <div class="connection-bar">
+            <button type="button" id="connectBtn">Connect</button>
+            <span class="status disconnected" id="statusBadge">Disconnected</span>
+        </div>
+
+        <div class="instructions" id="instructions">
+            <h3>Connection</h3>
+            <ol>
+                <li>Use <strong>Chrome</strong> or <strong>Edge</strong> (Web Serial).</li>
+                <li>Plug in LumaFader over USB — <strong>do not</strong> hold Pico BOOT.</li>
+                <li>Click <strong>Connect</strong> and choose the <strong>LumaFader</strong> serial port.</li>
+                <li>Edit settings, then <strong>Save to device</strong>. Hard-reset (unplug/replug) to apply.</li>
+            </ol>
+            <p class="hint" style="margin-top:10px">Stock LumaFader (non-Bitwig) firmware uses the <a href="https://derrickthomin.github.io/Midi-Slider-Cherry/web_config.html">Cherry web config</a>.</p>
+        </div>
+
+        <p id="loadingMsg">Connect to load settings from the device.</p>
+
+        <form id="settingsForm">
+            <div class="section">
+                <h2>Live device</h2>
+                <div class="live-panel" id="livePanel">
+                    <div class="live-item"><div class="live-label">Workspace</div><div class="live-value" id="liveWorkspace">—</div></div>
+                    <div class="live-item"><div class="live-label">Overlay</div><div class="live-value" id="liveOverlay">—</div></div>
+                    <div class="live-item"><div class="live-label">Scope</div><div class="live-value" id="liveScope">—</div></div>
+                    <div class="live-item"><div class="live-label">Buttons held</div><div class="live-value" id="liveButtons">—</div></div>
+                    <div class="live-item"><div class="live-label">Last MIDI in</div><div class="live-value" id="liveMidi">—</div></div>
+                </div>
+                <div class="slider-bars" id="sliderBars"></div>
+            </div>
+
+            <div class="section">
+                <h2>MIDI channel &amp; sensitivity</h2>
+                <div class="grid-2">
+                    <div class="field">
+                        <label for="midiChannel">MIDI channel (1–16)</label>
+                        <input type="number" id="midiChannel" min="1" max="16" value="1">
+                    </div>
+                    <div class="field">
+                        <label for="fineModifierBtn">Fine modifier button</label>
+                        <select id="fineModifierBtn"></select>
+                    </div>
+                    <div class="field">
+                        <label for="fineScale">Fine scale</label>
+                        <input type="number" id="fineScale" min="0.01" max="1" step="0.01" value="0.25">
+                    </div>
+                    <div class="field">
+                        <label for="deltaScale">Delta scale</label>
+                        <input type="number" id="deltaScale" min="0.01" max="4" step="0.01" value="1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="faderCcSection">
+                <h2>Fader CC numbers</h2>
+                <p class="hint">Absolute CC per fader (A–D). Learn assigns from incoming MIDI while connected.</p>
+                <div id="faderCcBanks"></div>
+            </div>
+
+            <div class="section">
+                <h2>Action CC (gesture → host)</h2>
+                <p class="hint">Pulse CCs sent to Bitwig or other hosts. Meaning is fixed in the extension; numbers are configurable.</p>
+                <div class="grid-2" id="actionCcFields"></div>
+            </div>
+
+            <div class="section">
+                <h2>Gesture bindings</h2>
+                <p class="hint">Button 1 = bottom, 4 = top. Double-tap / hold / chord timing is in firmware.</p>
+                <div id="bindingFields"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-toggle" data-collapse="userModeSection">
+                    <h2>User workspace</h2>
+                    <span>▼</span>
+                </div>
+                <div class="section-body" id="userModeSection">
+                    <div class="field">
+                        <label for="userBankSwitch">Bank switch page behavior</label>
+                        <select id="userBankSwitch">
+                            <option value="remember">remember — keep each bank’s last page</option>
+                            <option value="reset">reset — page 1 when changing bank</option>
+                        </select>
+                    </div>
+                    <p class="hint" style="margin:12px 0 8px">CC grid: bank = MIDI channel 1–4, page 1–4, view 0–3 (hold buttons 4/3/2).</p>
+                    <div class="user-grid-tabs" id="userBankTabs"></div>
+                    <div class="user-grid-tabs" id="userPageTabs"></div>
+                    <div id="userCcGrid"></div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="primary">Save to device</button>
+                <button type="button" id="reloadBtn">Reload from device</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const BUTTON_OPTIONS = [
+            { v: 0, l: '1 (bottom)' },
+            { v: 1, l: '2' },
+            { v: 2, l: '3' },
+            { v: 3, l: '4 (top)' },
+        ];
+        const WORKSPACE_NAMES = ['Focus (blue)', 'Four-Track (green)', 'User (red)'];
+        const OVERLAY_NAMES = ['—', 'Overlay 1 (btn 4)', 'Overlay 2 (btn 3)', 'Overlay 3 (btn 2)'];
+        const SCOPE_NAMES = ['Track', 'Device'];
+
+        const FADER_BANKS = [
+            { key: 'FADER_CC', title: 'Default (device remotes 1–4)', learn: 0 },
+            { key: 'FADER_CC_OVERLAY', title: 'Overlay 1 — remotes 5–8 (hold btn 4)', learn: 1 },
+            { key: 'FADER_CC_SENDS', title: 'Overlay 2 — sends (hold btn 3)', learn: 2 },
+            { key: 'FADER_CC_UTILITY', title: 'Overlay 3 — utility (hold btn 2)', learn: 3 },
+        ];
+
+        const ACTION_CC_META = [
+            { key: 'workspace_focus', label: 'Workspace: Focus' },
+            { key: 'workspace_four_track', label: 'Workspace: Four-Track' },
+            { key: 'workspace_user', label: 'Workspace: User' },
+            { key: 'scope_toggle', label: 'Scope toggle' },
+            { key: 'nav_next_track', label: 'Nav: next track' },
+            { key: 'nav_prev_track', label: 'Nav: prev track' },
+            { key: 'nav_next_device', label: 'Nav: next device' },
+            { key: 'nav_prev_device', label: 'Nav: prev device' },
+            { key: 'nav_next_track_page', label: 'Nav: next track page' },
+            { key: 'nav_prev_track_page', label: 'Nav: prev track page' },
+            { key: 'nav_next_send', label: 'Nav: next send' },
+            { key: 'nav_prev_send', label: 'Nav: prev send' },
+            { key: 'overlay_1', label: 'Overlay 1 hold' },
+            { key: 'overlay_2', label: 'Overlay 2 hold' },
+            { key: 'overlay_3', label: 'Overlay 3 hold' },
+            { key: 'fine_modifier', label: 'Fine modifier (legacy CC)' },
+        ];
+
+        const BINDING_META = [
+            { key: 'workspace_focus', label: 'Workspace → Focus', types: ['double_tap'] },
+            { key: 'workspace_four_track', label: 'Workspace → Four-Track', types: ['double_tap'] },
+            { key: 'workspace_user', label: 'Workspace → User', types: ['double_tap'] },
+            { key: 'scope_toggle', label: 'Scope toggle', types: ['double_tap'] },
+            { key: 'nav_next_track', label: 'Nav next track', types: ['chord'] },
+            { key: 'nav_prev_track', label: 'Nav prev track', types: ['chord'] },
+            { key: 'nav_next_device', label: 'Nav next device', types: ['chord'] },
+            { key: 'nav_prev_device', label: 'Nav prev device', types: ['chord'] },
+            { key: 'nav_next_track_page', label: 'Nav next track page', types: ['chord'] },
+            { key: 'nav_prev_track_page', label: 'Nav prev track page', types: ['chord'] },
+            { key: 'nav_next_send', label: 'Nav next send', types: ['chord'] },
+            { key: 'nav_prev_send', label: 'Nav prev send', types: ['chord'] },
+            { key: 'overlay_1', label: 'Overlay 1', types: ['hold'] },
+            { key: 'overlay_2', label: 'Overlay 2', types: ['hold'] },
+            { key: 'overlay_3', label: 'Overlay 3', types: ['hold'] },
+            { key: 'nav_user_bank_down', label: 'User: bank down', types: ['chord'] },
+            { key: 'nav_user_bank_up', label: 'User: bank up', types: ['chord'] },
+            { key: 'nav_user_page_up', label: 'User: page up', types: ['chord'] },
+            { key: 'nav_user_page_down', label: 'User: page down', types: ['chord'] },
+        ];
+
+        let port, reader, writer, readBuffer = '';
+        let settings = null;
+        let statusPollInterval, pingInterval;
+        let learnTarget = null;
+        let learnBankKey = null;
+        let learnSlot = 0;
+        let userBank = 0, userPage = 0;
+
+        const connectBtn = document.getElementById('connectBtn');
+        const statusBadge = document.getElementById('statusBadge');
+        const settingsForm = document.getElementById('settingsForm');
+        const loadingMsg = document.getElementById('loadingMsg');
+
+        function defaultUserCcGrid() {
+            const grid = [];
+            for (let b = 0; b < 4; b++) {
+                const pages = [];
+                for (let p = 0; p < 4; p++) {
+                    const views = [];
+                    for (let v = 0; v < 4; v++) {
+                        const base = p * 16 + v * 4;
+                        views.push([base, base + 1, base + 2, base + 3]);
+                    }
+                    pages.push(views);
+                }
+                grid.push(pages);
+            }
+            return grid;
+        }
+
+        function showToast(msg, type = 'success', ms = 3000) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show ' + type;
+            clearTimeout(t._tm);
+            t._tm = setTimeout(() => t.classList.remove('show'), ms);
+        }
+
+        function buttonSelect(id, selected) {
+            const sel = document.createElement('select');
+            sel.id = id;
+            BUTTON_OPTIONS.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o.v;
+                opt.textContent = o.l;
+                if (o.v === selected) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            return sel;
+        }
+
+        function buildStaticForm() {
+            const fineSel = document.getElementById('fineModifierBtn');
+            BUTTON_OPTIONS.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o.v;
+                opt.textContent = o.l;
+                fineSel.appendChild(opt);
+            });
+
+            const faderBanks = document.getElementById('faderCcBanks');
+            FADER_BANKS.forEach((bank, bi) => {
+                const block = document.createElement('div');
+                block.style.marginBottom = '14px';
+                block.innerHTML = `<label style="font-size:11px;color:#3a5a8a">${bank.title}</label>`;
+                const grid = document.createElement('div');
+                grid.className = 'grid-4';
+                grid.dataset.bankKey = bank.key;
+                ['A', 'B', 'C', 'D'].forEach((name, i) => {
+                    const row = document.createElement('div');
+                    row.className = 'cc-row';
+                    row.style.gridColumn = 'span 1';
+                    row.innerHTML = `
+                        <span class="fader-label">${name}</span>
+                        <input type="number" min="0" max="127" data-fader-bank="${bank.key}" data-fader-idx="${i}" id="cc_${bank.key}_${i}">
+                        <button type="button" class="learn" data-learn-bank="${bank.key}" data-learn-slot="${i}" title="MIDI learn">Learn</button>`;
+                    grid.appendChild(row);
+                });
+                block.appendChild(grid);
+                faderBanks.appendChild(block);
+            });
+
+            const actionFields = document.getElementById('actionCcFields');
+            ACTION_CC_META.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'field';
+                div.innerHTML = `<label for="action_${m.key}">${m.label}</label>
+                    <input type="number" min="0" max="127" id="action_${m.key}" data-action-key="${m.key}">`;
+                actionFields.appendChild(div);
+            });
+
+            const bindingRoot = document.getElementById('bindingFields');
+            BINDING_META.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'binding-card';
+                card.dataset.bindingKey = m.key;
+                card.innerHTML = `<div class="binding-title">${m.label}</div><div class="binding-fields"></div>`;
+                bindingRoot.appendChild(card);
+            });
+
+            const sliderBars = document.getElementById('sliderBars');
+            ['A', 'B', 'C', 'D'].forEach((name, i) => {
+                const w = document.createElement('div');
+                w.className = 'slider-bar-wrap';
+                w.innerHTML = `
+                    <label>${name}</label>
+                    <div class="slider-track"><div class="slider-fill" id="sliderFill${i}"></div></div>`;
+                sliderBars.appendChild(w);
+            });
+
+            document.querySelectorAll('.section-toggle').forEach(t => {
+                t.addEventListener('click', () => {
+                    const body = document.getElementById(t.dataset.collapse);
+                    const section = t.closest('.section');
+                    section.classList.toggle('collapsed');
+                });
+            });
+
+            document.getElementById('faderCcBanks').addEventListener('click', e => {
+                const btn = e.target.closest('[data-learn-bank]');
+                if (!btn) return;
+                toggleLearn(btn.dataset.learnBank, parseInt(btn.dataset.learnSlot, 10), btn);
+            });
+
+            buildUserGridTabs();
+        }
+
+        function buildUserGridTabs() {
+            const bankTabs = document.getElementById('userBankTabs');
+            const pageTabs = document.getElementById('userPageTabs');
+            bankTabs.innerHTML = '';
+            pageTabs.innerHTML = '';
+            for (let b = 0; b < 4; b++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = 'Bank ' + (b + 1);
+                btn.dataset.bank = b;
+                if (b === 0) btn.classList.add('active');
+                btn.addEventListener('click', () => {
+                    userBank = b;
+                    bankTabs.querySelectorAll('button').forEach(x => x.classList.toggle('active', parseInt(x.dataset.bank, 10) === b));
+                    renderUserCcGrid();
+                });
+                bankTabs.appendChild(btn);
+            }
+            for (let p = 0; p < 4; p++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = 'Page ' + (p + 1);
+                btn.dataset.page = p;
+                if (p === 0) btn.classList.add('active');
+                btn.addEventListener('click', () => {
+                    userPage = p;
+                    pageTabs.querySelectorAll('button').forEach(x => x.classList.toggle('active', parseInt(x.dataset.page, 10) === p));
+                    renderUserCcGrid();
+                });
+                pageTabs.appendChild(btn);
+            }
+        }
+
+        function renderUserCcGrid() {
+            const root = document.getElementById('userCcGrid');
+            root.innerHTML = '';
+            if (!settings || !settings.USER_CC_GRID) return;
+            const page = settings.USER_CC_GRID[userBank][userPage];
+            for (let v = 0; v < 4; v++) {
+                const viewLabel = v === 0 ? 'View 0 (default)' : `View ${v} (hold btn ${4 - v})`;
+                const block = document.createElement('div');
+                block.style.marginBottom = '10px';
+                block.innerHTML = `<label>${viewLabel}</label>`;
+                const grid = document.createElement('div');
+                grid.className = 'grid-4';
+                for (let f = 0; f < 4; f++) {
+                    const field = document.createElement('div');
+                    field.className = 'field';
+                    field.innerHTML = `
+                        <label>Fader ${['A','B','C','D'][f]}</label>
+                        <input type="number" min="0" max="127" data-ug-b="${userBank}" data-ug-p="${userPage}" data-ug-v="${v}" data-ug-f="${f}" value="${page[v][f]}">`;
+                    grid.appendChild(field);
+                }
+                block.appendChild(grid);
+                root.appendChild(block);
+            }
+        }
+
+        function renderBindingCard(key, binding) {
+            const card = document.querySelector(`[data-binding-key="${key}"]`);
+            const fields = card.querySelector('.binding-fields');
+            fields.innerHTML = '';
+            if (!binding) binding = { type: 'double_tap', button: 0 };
+
+            const typeSel = document.createElement('select');
+            typeSel.dataset.bindingPart = 'type';
+            ['double_tap', 'chord', 'hold'].forEach(t => {
+                const o = document.createElement('option');
+                o.value = t;
+                o.textContent = t;
+                if (binding.type === t) o.selected = true;
+                typeSel.appendChild(o);
+            });
+            const typeField = document.createElement('div');
+            typeField.className = 'field';
+            typeField.innerHTML = '<label>Type</label>';
+            typeField.appendChild(typeSel);
+            fields.appendChild(typeField);
+
+            const rebuild = () => {
+                const t = typeSel.value;
+                fields.querySelectorAll('[data-binding-extra]').forEach(el => el.remove());
+                if (t === 'double_tap' || t === 'hold') {
+                    const f = document.createElement('div');
+                    f.className = 'field';
+                    f.dataset.bindingExtra = '1';
+                    f.innerHTML = '<label>Button</label>';
+                    f.appendChild(buttonSelect('b_' + key + '_btn', binding.button ?? 0));
+                    fields.appendChild(f);
+                } else if (t === 'chord') {
+                    ['hold', 'tap'].forEach(part => {
+                        const f = document.createElement('div');
+                        f.className = 'field';
+                        f.dataset.bindingExtra = '1';
+                        f.innerHTML = `<label>${part}</label>`;
+                        f.appendChild(buttonSelect('b_' + key + '_' + part, binding[part] ?? 0));
+                        fields.appendChild(f);
+                    });
+                }
+            };
+            typeSel.addEventListener('change', rebuild);
+            rebuild();
+        }
+
+        function populateForm(data) {
+            settings = JSON.parse(JSON.stringify(data));
+            if (!settings.USER_CC_GRID) settings.USER_CC_GRID = defaultUserCcGrid();
+
+            document.getElementById('midiChannel').value = settings.MIDI_CHANNEL ?? 1;
+            document.getElementById('fineModifierBtn').value = settings.FINE_MODIFIER_BUTTON ?? 0;
+            document.getElementById('fineScale').value = settings.FINE_SCALE ?? 0.25;
+            document.getElementById('deltaScale').value = settings.DELTA_SCALE ?? 1.0;
+            document.getElementById('userBankSwitch').value = settings.USER_BANK_SWITCH_PAGE ?? 'remember';
+
+            FADER_BANKS.forEach(bank => {
+                const arr = settings[bank.key] || [0, 0, 0, 0];
+                for (let i = 0; i < 4; i++) {
+                    const el = document.getElementById(`cc_${bank.key}_${i}`);
+                    if (el) el.value = arr[i];
+                }
+            });
+
+            ACTION_CC_META.forEach(m => {
+                const el = document.getElementById('action_' + m.key);
+                if (el && settings.ACTION_CC) el.value = settings.ACTION_CC[m.key] ?? 0;
+            });
+
+            BINDING_META.forEach(m => {
+                renderBindingCard(m.key, (settings.BINDINGS || {})[m.key]);
+            });
+
+            renderUserCcGrid();
+            loadingMsg.style.display = 'none';
+            settingsForm.classList.add('loaded');
+        }
+
+        function collectFormData() {
+            const out = JSON.parse(JSON.stringify(settings));
+            out.MIDI_CHANNEL = parseInt(document.getElementById('midiChannel').value, 10);
+            out.FINE_MODIFIER_BUTTON = parseInt(document.getElementById('fineModifierBtn').value, 10);
+            out.FINE_SCALE = parseFloat(document.getElementById('fineScale').value);
+            out.DELTA_SCALE = parseFloat(document.getElementById('deltaScale').value);
+            out.USER_BANK_SWITCH_PAGE = document.getElementById('userBankSwitch').value;
+            out.PROTOCOL_VERSION = out.PROTOCOL_VERSION ?? 1;
+
+            FADER_BANKS.forEach(bank => {
+                out[bank.key] = [];
+                for (let i = 0; i < 4; i++) {
+                    out[bank.key].push(parseInt(document.getElementById(`cc_${bank.key}_${i}`).value, 10));
+                }
+            });
+
+            out.ACTION_CC = out.ACTION_CC || {};
+            ACTION_CC_META.forEach(m => {
+                out.ACTION_CC[m.key] = parseInt(document.getElementById('action_' + m.key).value, 10);
+            });
+
+            out.BINDINGS = out.BINDINGS || {};
+            BINDING_META.forEach(m => {
+                const card = document.querySelector(`[data-binding-key="${m.key}"]`);
+                const type = card.querySelector('[data-binding-part="type"]').value;
+                const b = { type };
+                if (type === 'double_tap' || type === 'hold') {
+                    const sel = card.querySelector('[data-binding-extra] select');
+                    b.button = sel ? parseInt(sel.value, 10) : 0;
+                } else if (type === 'chord') {
+                    const extra = card.querySelectorAll('[data-binding-extra] select');
+                    b.hold = parseInt(extra[0].value, 10);
+                    b.tap = parseInt(extra[1].value, 10);
+                }
+                out.BINDINGS[m.key] = b;
+            });
+
+            document.querySelectorAll('#userCcGrid input[data-ug-b]').forEach(inp => {
+                const b = parseInt(inp.dataset.ugB, 10);
+                const p = parseInt(inp.dataset.ugP, 10);
+                const v = parseInt(inp.dataset.ugV, 10);
+                const f = parseInt(inp.dataset.ugF, 10);
+                if (!out.USER_CC_GRID) out.USER_CC_GRID = defaultUserCcGrid();
+                out.USER_CC_GRID[b][p][v][f] = parseInt(inp.value, 10);
+            });
+
+            delete out._help;
+            return out;
+        }
+
+        function handleStatus(data) {
+            if (!data.ready) return;
+            document.getElementById('liveWorkspace').textContent =
+                WORKSPACE_NAMES[data.workspace] ?? ('id ' + data.workspace);
+            document.getElementById('liveOverlay').textContent =
+                OVERLAY_NAMES[data.overlay] ?? String(data.overlay);
+            document.getElementById('liveScope').textContent =
+                SCOPE_NAMES[data.remote_scope] ?? String(data.remote_scope);
+            const held = (data.held_buttons || []).map(i => (i + 1)).join(', ') || '—';
+            document.getElementById('liveButtons').textContent = held;
+            if (data.last_midi_type != null && data.last_midi_num != null) {
+                const kind = data.last_midi_type === 'AT' ? 'AT' : 'CC';
+                document.getElementById('liveMidi').textContent =
+                    `${kind} ${data.last_midi_num} · ch ${(data.last_midi_ch ?? 0) + 1}`;
+            }
+            const vals = data.slider_values || [0, 0, 0, 0];
+            vals.forEach((v, i) => {
+                const fill = document.getElementById('sliderFill' + i);
+                if (fill) fill.style.height = Math.min(100, Math.round(v / 127 * 100)) + '%';
+            });
+        }
+
+        async function toggleLearn(bankKey, slot, btn) {
+            const id = bankKey + ':' + slot;
+            if (learnTarget === id) {
+                await sendCommand('STOP_LEARN');
+                learnTarget = null;
+                learnBankKey = null;
+                btn.classList.remove('active');
+                return;
+            }
+            document.querySelectorAll('.learn.active').forEach(b => b.classList.remove('active'));
+            learnTarget = id;
+            learnBankKey = bankKey;
+            learnSlot = slot;
+            btn.classList.add('active');
+            await sendCommand('START_LEARN|' + slot);
+            showToast('Twist a control in your DAW (incoming CC)…', 'success', 2000);
+        }
+
+        function applyLearnedCc(_sliderIdx, cc, channel) {
+            document.querySelectorAll('.learn.active').forEach(b => b.classList.remove('active'));
+            if (!learnBankKey) return;
+            const el = document.getElementById(`cc_${learnBankKey}_${learnSlot}`);
+            if (el) el.value = cc;
+            const bank = FADER_BANKS.find(b => b.key === learnBankKey);
+            showToast(`Learned CC ${cc} ch ${channel} → ${bank ? bank.title : learnBankKey} fader ${['A','B','C','D'][learnSlot]}`, 'success');
+            learnTarget = null;
+            learnBankKey = null;
+        }
+
+        function handleResponse(data) {
+            if (data.error) {
+                showToast('Error: ' + data.error, 'error');
+                return;
+            }
+            if (data.device === 'lumafader') {
+                showToast('Stock LumaFader firmware — use the Cherry web config.', 'error', 5000);
+                return;
+            }
+            if (data.status === 'ok' && data.message) {
+                showToast(data.message, 'success', 4000);
+                return;
+            }
+            if (data.type === 'caps') return;
+            if (data.type === 'status') { handleStatus(data); return; }
+            if (data.type === 'learn_started') return;
+            if (data.type === 'learned') {
+                applyLearnedCc(data.slider, data.cc, data.channel);
+                return;
+            }
+            if (data.type === 'learn_timeout' || data.type === 'learn_stopped') {
+                learnTarget = null;
+                document.querySelectorAll('.learn.active').forEach(b => b.classList.remove('active'));
+                if (data.type === 'learn_timeout') showToast('Learn timed out', 'error');
+                return;
+            }
+            if (data.MIDI_CHANNEL !== undefined || data.FADER_CC !== undefined) {
+                populateForm(data);
+            }
+        }
+
+        async function sendCommand(cmd) {
+            if (!writer) return;
+            await writer.write(new TextEncoder().encode('CMD:' + cmd + '\n'));
+        }
+
+        async function readLoop() {
+            const decoder = new TextDecoder();
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    readBuffer += decoder.decode(value);
+                    let idx;
+                    while ((idx = readBuffer.indexOf('\n')) !== -1) {
+                        const line = readBuffer.slice(0, idx).trim();
+                        readBuffer = readBuffer.slice(idx + 1);
+                        if (line.startsWith('RSP:')) {
+                            try { handleResponse(JSON.parse(line.slice(4))); } catch (e) { console.error(e); }
+                        }
+                    }
+                }
+            } catch (err) {
+                if (err.name !== 'NetworkError') console.error(err);
+            }
+        }
+
+        async function connect() {
+            if (!('serial' in navigator)) {
+                showToast('Web Serial not supported. Use Chrome or Edge.', 'error', 5000);
+                return;
+            }
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+                writer = port.writable.getWriter();
+                reader = port.readable.getReader();
+                statusBadge.textContent = 'Connected';
+                statusBadge.className = 'status connected';
+                connectBtn.textContent = 'Disconnect';
+                document.getElementById('instructions').classList.add('hidden');
+                readLoop();
+                setTimeout(() => sendCommand('PING'), 300);
+                setTimeout(() => sendCommand('SET_CONFIG_MODE|1'), 400);
+                setTimeout(() => sendCommand('GET_CAPS'), 500);
+                setTimeout(() => sendCommand('GET_SETTINGS'), 600);
+                statusPollInterval = setInterval(() => sendCommand('GET_STATUS'), 100);
+                pingInterval = setInterval(() => sendCommand('PING'), 2000);
+            } catch (err) {
+                showToast('Connect failed: ' + err.message, 'error');
+            }
+        }
+
+        async function disconnect() {
+            if (statusPollInterval) { clearInterval(statusPollInterval); statusPollInterval = null; }
+            if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
+            try {
+                if (writer) {
+                    try { await sendCommand('SET_CONFIG_MODE|0'); await new Promise(r => setTimeout(r, 80)); } catch (e) {}
+                }
+                if (reader) { await reader.cancel(); reader.releaseLock(); reader = null; }
+                if (writer) { writer.releaseLock(); writer = null; }
+                if (port) { await port.close(); port = null; }
+            } catch (e) {}
+            statusBadge.textContent = 'Disconnected';
+            statusBadge.className = 'status disconnected';
+            connectBtn.textContent = 'Connect';
+            document.getElementById('instructions').classList.remove('hidden');
+            settingsForm.classList.remove('loaded');
+            loadingMsg.style.display = 'block';
+            settings = null;
+        }
+
+        connectBtn.addEventListener('click', () => port ? disconnect() : connect());
+        document.getElementById('reloadBtn').addEventListener('click', () => sendCommand('GET_SETTINGS'));
+        settingsForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            const data = collectFormData();
+            await sendCommand('SET_SETTINGS|' + JSON.stringify(data));
+        });
+        window.addEventListener('beforeunload', () => { if (port) disconnect(); });
+
+        buildStaticForm();
+    </script>
+</body>
+</html>
