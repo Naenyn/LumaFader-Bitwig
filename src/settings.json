@@ -19,9 +19,9 @@
     "FINE_SCALE": 0.25,
     "DELTA_SCALE": 1.0,
     "ACTION_CC": {
-        "workspace_focus": 60,
-        "workspace_four_track": 61,
-        "workspace_user": 62,
+        "mode_focus": 60,
+        "mode_four_track": 61,
+        "mode_user": 62,
         "nav_next_track": 40,
         "nav_prev_track": 41,
         "nav_next_device": 42,
@@ -36,9 +36,9 @@
         "fine_modifier": 53
     },
     "BINDINGS": {
-        "workspace_focus": {"type": "double_tap", "button": 3},
-        "workspace_four_track": {"type": "double_tap", "button": 2},
-        "workspace_user": {"type": "double_tap", "button": 1},
+        "mode_focus": {"type": "double_tap", "button": 3},
+        "mode_four_track": {"type": "double_tap", "button": 2},
+        "mode_user": {"type": "double_tap", "button": 1},
         "nav_next_track": {"type": "chord", "hold": 3, "tap": 0},
         "nav_prev_track": {"type": "chord", "hold": 0, "tap": 3},
         "nav_next_device": {"type": "chord", "hold": 2, "tap": 1},

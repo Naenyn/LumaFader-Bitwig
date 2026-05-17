@@ -3,12 +3,12 @@ from settings import settings
 
 
 class GestureEngine:
-    """Detects double-tap workspace switches, overlay holds, and nav chords."""
+    """Detects double-tap mode switches, overlay holds, and nav chords."""
 
     GESTURE_MAP = {
-        "workspace_focus": (cfg.GESTURE_WORKSPACE, cfg.WORKSPACE_FOCUS),
-        "workspace_four_track": (cfg.GESTURE_WORKSPACE, cfg.WORKSPACE_FOUR_TRACK),
-        "workspace_user": (cfg.GESTURE_WORKSPACE, cfg.WORKSPACE_USER),
+        "mode_focus": (cfg.GESTURE_MODE, cfg.MODE_FOCUS),
+        "mode_four_track": (cfg.GESTURE_MODE, cfg.MODE_FOUR_TRACK),
+        "mode_user": (cfg.GESTURE_MODE, cfg.MODE_USER),
         "nav_next_track": (cfg.GESTURE_NAV_NEXT_TRACK, 0),
         "nav_prev_track": (cfg.GESTURE_NAV_PREV_TRACK, 0),
         "nav_next_device": (cfg.GESTURE_NAV_NEXT_DEVICE, 0),

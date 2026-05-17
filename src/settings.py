@@ -19,9 +19,9 @@ def _default_user_cc_grid():
 
 # Every binding name in BINDINGS should have a matching ACTION_CC entry.
 ACTION_CC_KEYS = (
-    "workspace_focus",
-    "workspace_four_track",
-    "workspace_user",
+    "mode_focus",
+    "mode_four_track",
+    "mode_user",
     "nav_next_track",
     "nav_prev_track",
     "nav_next_device",
@@ -36,11 +36,40 @@ ACTION_CC_KEYS = (
     "fine_modifier",
 )
 
+FADER_CC_BANK_KEYS = (
+    "FADER_CC",
+    "FADER_CC_OVERLAY",
+    "FADER_CC_SENDS",
+    "FADER_CC_UTILITY",
+)
+
 # Keep clear of FADER_CC_SENDS (28–31) and FADER_CC_UTILITY (32–35).
+# Renamed from workspace_* (settings.json on older devices).
+_LEGACY_MODE_ACTION_KEYS = {
+    "workspace_focus": "mode_focus",
+    "workspace_four_track": "mode_four_track",
+    "workspace_user": "mode_user",
+}
+
+
+def _migrate_legacy_mode_keys(settings):
+    """Rename workspace_* → mode_* in ACTION_CC / BINDINGS (in-place)."""
+    for key in ("ACTION_CC", "BINDINGS"):
+        block = settings.get(key)
+        if not isinstance(block, dict):
+            continue
+        for old, new in _LEGACY_MODE_ACTION_KEYS.items():
+            if old not in block:
+                continue
+            if new not in block:
+                block[new] = block[old]
+            del block[old]
+
+
 DEFAULT_ACTION_CC = {
-    "workspace_focus": 60,
-    "workspace_four_track": 61,
-    "workspace_user": 62,
+    "mode_focus": 60,
+    "mode_four_track": 61,
+    "mode_user": 62,
     "nav_next_track": 40,
     "nav_prev_track": 41,
     "nav_next_device": 42,
@@ -69,9 +98,9 @@ class Settings:
         "DELTA_SCALE": 1.0,
         "ACTION_CC": dict(DEFAULT_ACTION_CC),
         "BINDINGS": {
-            "workspace_focus": {"type": "double_tap", "button": cfg.BUTTON_4},
-            "workspace_four_track": {"type": "double_tap", "button": cfg.BUTTON_3},
-            "workspace_user": {"type": "double_tap", "button": cfg.BUTTON_2},
+            "mode_focus": {"type": "double_tap", "button": cfg.BUTTON_4},
+            "mode_four_track": {"type": "double_tap", "button": cfg.BUTTON_3},
+            "mode_user": {"type": "double_tap", "button": cfg.BUTTON_2},
             "nav_next_track": {"type": "chord", "hold": cfg.BUTTON_4, "tap": cfg.BUTTON_1},
             "nav_prev_track": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
             "nav_next_device": {"type": "chord", "hold": cfg.BUTTON_3, "tap": cfg.BUTTON_2},
@@ -105,6 +134,7 @@ class Settings:
         try:
             with open(self.settings_path, "r") as f:
                 self.settings = json.load(f)
+            _migrate_legacy_mode_keys(self.settings)
             if not self._validate():
                 print("Invalid settings; using defaults.")
                 self._use_defaults()
@@ -145,6 +175,8 @@ class Settings:
         if "USER_CC_GRID" not in self.settings:
             self.settings["USER_CC_GRID"] = _default_user_cc_grid()
         # Fixed contract with LumaFaderExtension.java — not user-configurable.
+        for key in FADER_CC_BANK_KEYS:
+            self.settings[key] = list(self.DEFAULTS[key])
         self.settings["ACTION_CC"] = dict(DEFAULT_ACTION_CC)
 
     def get_midi_channel(self):

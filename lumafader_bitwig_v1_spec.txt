@@ -121,7 +121,7 @@ Firmware should NOT maintain authoritative parameter state.
 
 Bitwig extension owns:
 - parameter values
-- workspace state
+- mode state
 - navigation state
 - LED semantics
 - visible track model
@@ -204,7 +204,7 @@ Minimum required message types:
 ## 1. Visible State Update
 
 Contains:
-- workspace ID
+- mode ID
 - overlay ID
 - remote scope
 - fader values
@@ -214,7 +214,7 @@ Contains:
 
 ---
 
-## 2. Workspace Change
+## 2. Mode Change
 
 ---
 
@@ -262,7 +262,7 @@ NOT decorative.
 LEDs should represent:
 - parameter values
 - scope state
-- workspace state
+- mode state
 - unavailable controls
 - navigation feedback
 
@@ -314,7 +314,7 @@ Design architecture so future features are possible:
 - directional transition animations
 - modulation visualization
 - animated LED overlays
-- richer workspace transitions
+- richer mode transitions
 
 DO NOT implement these yet.
 
@@ -328,7 +328,7 @@ Users may remap:
 - overlay buttons
 - navigation gestures
 - fine modifier
-- workspace double-taps
+- mode double-taps
 
 BUT:
 semantic meanings remain fixed.
@@ -341,27 +341,27 @@ Prefer JSON configuration.
 
 ---
 
-# Workspace Architecture
+# Mode Architecture
 
-There are 3 persistent workspaces.
+There are 3 persistent modes.
 
-Switching workspaces uses double-tap gestures.
+Switching modes uses double-tap gestures.
 
 ---
 
-# Workspace Switching
+# Mode Switching
 
 Default bindings:
 
-| Gesture | Workspace |
+| Gesture | Mode |
 |---|---|
-| Double-tap BUTTON_1 | Focus Workspace |
-| Double-tap BUTTON_2 | Four-Track Workspace |
-| Double-tap BUTTON_3 | User Workspace |
+| Double-tap BUTTON_1 | Focus Mode |
+| Double-tap BUTTON_2 | Four-Track Mode |
+| Double-tap BUTTON_3 | User Mode |
 
 ---
 
-# Remote navigation axis (Focus workspace)
+# Remote navigation axis (Focus mode)
 
 Track remotes are the **left edge** of the remote target chain on the current track.
 Device remotes extend to the right through the device chain.
@@ -380,14 +380,14 @@ SysEx `remote_scope` reports device (0) vs track (1) for LED semantics.
 
 ---
 
-# WORKSPACE 1: Focus Workspace
+# MODE 1: Focus Mode
 
 Purpose:
 - detailed sound design
 - focused editing
 - automation shaping
 
-This workspace FOLLOWS:
+This mode FOLLOWS:
 - selected Bitwig track
 - selected Bitwig device
 
@@ -466,7 +466,7 @@ Last-touched parameter:
 
 ---
 
-# Focus Workspace Navigation
+# Focus Mode Navigation
 
 ## Track Navigation
 
@@ -493,14 +493,14 @@ No wrapping.
 
 ---
 
-# WORKSPACE 2: Four-Track Workspace
+# MODE 2: Four-Track Mode
 
 Purpose:
 - multi-track balancing
 - routing
 - send shaping
 
-This workspace:
+This mode:
 - DOES NOT follow selected track
 - maintains independent viewport state
 
@@ -508,7 +508,7 @@ This workspace:
 
 # Visible Track Model
 
-Workspace operates ONLY on:
+Mode operates ONLY on:
 - visible Bitwig mixer tracks
 
 Collapsed group children are excluded.
@@ -530,9 +530,9 @@ etc.
 
 ---
 
-# Four-Track Workspace Initialization
+# Four-Track Mode Initialization
 
-Upon entering workspace:
+Upon entering mode:
 - initialize viewport around currently selected track
 
 After entering:
@@ -618,12 +618,12 @@ If send does not exist:
 
 ---
 
-# WORKSPACE 3: User Workspace
+# MODE 3: User Mode
 
 Purpose:
 - direct user-defined MIDI controls
 
-This workspace intentionally has:
+This mode intentionally has:
 - NO paging
 - NO contextual behavior
 - NO track following
@@ -632,7 +632,7 @@ It is stable and fixed.
 
 ---
 
-# User Workspace Layout
+# User Mode Layout
 
 ## Default
 
@@ -658,7 +658,7 @@ User CC Bank D
 
 ---
 
-# User Workspace Requirements
+# User Mode Requirements
 
 - stable fixed mappings
 - user-configurable
@@ -697,7 +697,7 @@ Extension should handle:
 - visible track list
 - track/device navigation
 - remote scope
-- workspace state
+- mode state
 - parameter observation
 - send existence
 - last-touched parameter tracking

@@ -18,7 +18,7 @@ final class VisibleStateSysex
    }
 
    void send(
-      final int workspaceId,
+      final int modeId,
       final int overlayId,
       final int remoteScope,
       final int[] faderModes,
@@ -38,7 +38,7 @@ final class VisibleStateSysex
       data[4] = (byte) SysexProtocol.MSG_VISIBLE_STATE;
 
       int offset = 5;
-      data[offset++] = (byte) workspaceId;
+      data[offset++] = (byte) modeId;
       data[offset++] = (byte) overlayId;
       data[offset++] = (byte) remoteScope;
 
@@ -66,7 +66,7 @@ final class VisibleStateSysex
       midiOut.sendSysexBytes(data);
    }
 
-   void sendWorkspaceChange(final int workspaceId)
+   void sendModeChange(final int modeId)
    {
       final byte[] data =
          new byte[] {
@@ -74,8 +74,8 @@ final class VisibleStateSysex
             (byte) SysexProtocol.MANUFACTURER_ID,
             (byte) SysexProtocol.DEVICE_ID,
             (byte) SysexProtocol.PROTOCOL_VERSION,
-            (byte) SysexProtocol.MSG_WORKSPACE_CHANGE,
-            (byte) workspaceId,
+            (byte) SysexProtocol.MSG_MODE_CHANGE,
+            (byte) modeId,
             (byte) 0xF7,
          };
       midiOut.sendSysexBytes(data);

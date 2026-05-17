@@ -21,8 +21,8 @@ def parse_sysex(data, visible_state):
     if msg_type == cfg.MSG_VISIBLE_STATE:
         return visible_state.apply_visible_state(payload)
 
-    if msg_type == cfg.MSG_WORKSPACE_CHANGE and len(payload) >= 1:
-        visible_state.workspace_id = payload[0]
+    if msg_type == cfg.MSG_MODE_CHANGE and len(payload) >= 1:
+        visible_state.mode_id = payload[0]
         return True
 
     if msg_type == cfg.MSG_SCOPE_CHANGE and len(payload) >= 1:

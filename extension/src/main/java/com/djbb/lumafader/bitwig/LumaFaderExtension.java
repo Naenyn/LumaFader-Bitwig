@@ -25,7 +25,7 @@ import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.TrackBank;
 
 /**
- * Focus workspace: CC 20–23 → remotes 1–4; CC 24–27 → remotes 5–8 (track or device);
+ * Focus mode: CC 20–23 → remotes 1–4; CC 24–27 → remotes 5–8 (track or device);
  * CC 28–31 → sends 1–4 (overlay 2); CC 32–35 → utility (overlay 3).
  * LED feedback via SysEx visible-state updates.
  */
@@ -53,9 +53,9 @@ public class LumaFaderExtension extends ControllerExtension
    private static final int NAV_NEXT_SEND_CC = 46;
    private static final int NAV_PREV_SEND_CC = 47;
    /** Outside FADER_CC_SENDS (28–31) and FADER_CC_UTILITY (32–35). */
-   private static final int WORKSPACE_FOCUS_ACTION_CC = 60;
-   private static final int WORKSPACE_FOUR_TRACK_ACTION_CC = 61;
-   private static final int WORKSPACE_USER_ACTION_CC = 62;
+   private static final int MODE_FOCUS_ACTION_CC = 60;
+   private static final int MODE_FOUR_TRACK_ACTION_CC = 61;
+   private static final int MODE_USER_ACTION_CC = 62;
    private static final int UTILITY_LAST_TOUCHED = 0;
    private static final int UTILITY_RESERVED = 1;
    private static final int UTILITY_PAN = 2;
@@ -92,7 +92,7 @@ public class LumaFaderExtension extends ControllerExtension
    private static final int DISPLAY_FOUR_PAN = 6;
 
    private ControllerHost host;
-   private int workspaceId = SysexProtocol.WORKSPACE_FOCUS;
+   private int modeId = SysexProtocol.MODE_FOCUS;
    private final FourTrackViewport fourTrackViewport = new FourTrackViewport();
    private CursorTrack cursorTrack;
    /** Scans the flat track list for Four-Track visibility (not shown in the UI). */
@@ -196,19 +196,19 @@ public class LumaFaderExtension extends ControllerExtension
       host.scheduleTask(this::sendVisibleState, 200);
 
       host.println("LumaFader: CC 20–35 via onMidi; takeover ramp on overlay/fine release");
-      host.println("Navigation: ACTION_CC 40–47 chord pulses (workspace-dependent)");
-      host.println("Workspaces: ACTION_CC 60–62 double-tap");
+      host.println("Navigation: ACTION_CC 40–47 chord pulses (mode-dependent)");
+      host.println("Modes: ACTION_CC 60–62 double-tap");
       host.println("LED feedback: SysEx visible state (0x10)");
    }
 
-   private boolean isFocusWorkspace()
+   private boolean isFocusMode()
    {
-      return workspaceId == SysexProtocol.WORKSPACE_FOCUS;
+      return modeId == SysexProtocol.MODE_FOCUS;
    }
 
-   private boolean isFourTrackWorkspace()
+   private boolean isFourTrackMode()
    {
-      return workspaceId == SysexProtocol.WORKSPACE_FOUR_TRACK;
+      return modeId == SysexProtocol.MODE_FOUR_TRACK;
    }
 
    /**
@@ -272,7 +272,7 @@ public class LumaFaderExtension extends ControllerExtension
 
    private void onFlatTrackBankDataChanged()
    {
-      if (!isFourTrackWorkspace())
+      if (!isFourTrackMode())
       {
          return;
       }
@@ -467,9 +467,9 @@ public class LumaFaderExtension extends ControllerExtension
          (BooleanValueChangedCallback) exists -> scheduleVisibleStateUpdate());
    }
 
-   private boolean isUserWorkspace()
+   private boolean isUserMode()
    {
-      return workspaceId == SysexProtocol.WORKSPACE_USER;
+      return modeId == SysexProtocol.MODE_USER;
    }
 
    private void onMidi(final ShortMidiMessage msg)
@@ -481,9 +481,9 @@ public class LumaFaderExtension extends ControllerExtension
 
       final int cc = msg.getData1();
 
-      if (isUserWorkspace())
+      if (isUserMode())
       {
-         if (handleWorkspaceActionCc(cc, msg.getData2()))
+         if (handleModeActionCc(cc, msg.getData2()))
          {
             return;
          }
@@ -502,7 +502,7 @@ public class LumaFaderExtension extends ControllerExtension
          return;
       }
 
-      if (handleWorkspaceActionCc(cc, msg.getData2()))
+      if (handleModeActionCc(cc, msg.getData2()))
       {
          return;
       }
@@ -530,7 +530,7 @@ public class LumaFaderExtension extends ControllerExtension
          return;
       }
 
-      if (isFourTrackWorkspace())
+      if (isFourTrackMode())
       {
          onMidiFourTrackFader(cc, msg.getData2());
          return;
@@ -592,7 +592,7 @@ public class LumaFaderExtension extends ControllerExtension
          overlay3Held = held;
       }
 
-      if (isFourTrackWorkspace())
+      if (isFourTrackMode())
       {
          if (overlayNumber == 1)
          {
@@ -630,51 +630,51 @@ public class LumaFaderExtension extends ControllerExtension
       }
    }
 
-   private boolean handleWorkspaceActionCc(final int cc, final int value)
+   private boolean handleModeActionCc(final int cc, final int value)
    {
       if (value < 64)
       {
-         return cc == WORKSPACE_FOCUS_ACTION_CC
-            || cc == WORKSPACE_FOUR_TRACK_ACTION_CC
-            || cc == WORKSPACE_USER_ACTION_CC;
+         return cc == MODE_FOCUS_ACTION_CC
+            || cc == MODE_FOUR_TRACK_ACTION_CC
+            || cc == MODE_USER_ACTION_CC;
       }
 
       switch (cc)
       {
-         case WORKSPACE_FOCUS_ACTION_CC:
-            switchWorkspace(SysexProtocol.WORKSPACE_FOCUS);
+         case MODE_FOCUS_ACTION_CC:
+            switchMode(SysexProtocol.MODE_FOCUS);
             return true;
-         case WORKSPACE_FOUR_TRACK_ACTION_CC:
-            switchWorkspace(SysexProtocol.WORKSPACE_FOUR_TRACK);
+         case MODE_FOUR_TRACK_ACTION_CC:
+            switchMode(SysexProtocol.MODE_FOUR_TRACK);
             return true;
-         case WORKSPACE_USER_ACTION_CC:
-            switchWorkspace(SysexProtocol.WORKSPACE_USER);
+         case MODE_USER_ACTION_CC:
+            switchMode(SysexProtocol.MODE_USER);
             return true;
          default:
             return false;
       }
    }
 
-   private void switchWorkspace(final int newWorkspaceId)
+   private void switchMode(final int newModeId)
    {
-      if (workspaceId == newWorkspaceId)
+      if (modeId == newModeId)
       {
          scheduleVisibleStateUpdate();
          return;
       }
 
-      final boolean leavingFourTrack = isFourTrackWorkspace();
-      workspaceId = newWorkspaceId;
+      final boolean leavingFourTrack = isFourTrackMode();
+      modeId = newModeId;
       overlay1Held = false;
       overlay2Held = false;
       overlay3Held = false;
 
-      if (leavingFourTrack && !isFourTrackWorkspace())
+      if (leavingFourTrack && !isFourTrackMode())
       {
          setFourTrackWindowIndication(false);
       }
 
-      if (isFourTrackWorkspace())
+      if (isFourTrackMode())
       {
          ledDisplayKind = DISPLAY_FOUR_SENDS;
          fourTrackViewport.initPageAroundCursor(
@@ -682,27 +682,27 @@ public class LumaFaderExtension extends ControllerExtension
          enableFourTrackWindowIndication();
          host.scheduleTask(this::enableFourTrackWindowIndication, DEVICE_SELECT_DELAY_MS);
       }
-      else if (isFocusWorkspace())
+      else if (isFocusMode())
       {
          ledDisplayKind = DISPLAY_REMOTES;
          editingTrackRemotes = false;
          host.scheduleTask(this::scheduleSelectFirstDeviceOnCursorTrack, DEVICE_SELECT_DELAY_MS);
       }
-      else if (isUserWorkspace())
+      else if (isUserMode())
       {
          ledDisplayKind = DISPLAY_REMOTES;
       }
 
       faderTakeover.disarmAll();
       faderNavPickup.arm();
-      visibleStateSysex.sendWorkspaceChange(workspaceId);
+      visibleStateSysex.sendModeChange(modeId);
       armFaderTakeoverForCurrentLayer();
       scheduleVisibleStateUpdate();
    }
 
    private boolean handleNavActionCc(final int cc, final int value)
    {
-      if (isFourTrackWorkspace())
+      if (isFourTrackMode())
       {
          return handleFourTrackNavActionCc(cc, value);
       }
@@ -1608,7 +1608,7 @@ public class LumaFaderExtension extends ControllerExtension
 
    private int hostMidi7ForDisplayedFader(final int faderIndex)
    {
-      if (isFourTrackWorkspace())
+      if (isFourTrackMode())
       {
          return hostMidi7ForFourTrackFader(faderIndex);
       }
@@ -1738,7 +1738,7 @@ public class LumaFaderExtension extends ControllerExtension
       final int[][] faderColors = new int[FADER_COUNT][3];
       final int[][] buttonColors = new int[FADER_COUNT][3];
 
-      if (isFourTrackWorkspace())
+      if (isFourTrackMode())
       {
          fourTrackViewport.rebuildVisibleTracks(flatTrackBank, MAIN_TRACK_BANK_SIZE);
          syncFourTrackBankToViewport();
@@ -1755,7 +1755,7 @@ public class LumaFaderExtension extends ControllerExtension
             fillFourTrackSendFaderState(faderModes, faderValues, faderColors, buttonColors);
          }
       }
-      else if (workspaceId == SysexProtocol.WORKSPACE_USER)
+      else if (modeId == SysexProtocol.MODE_USER)
       {
          for (int i = 0; i < FADER_COUNT; i++)
          {
@@ -1776,7 +1776,7 @@ public class LumaFaderExtension extends ControllerExtension
       }
 
       visibleStateSysex.send(
-         workspaceId,
+         modeId,
          sysexOverlayId(),
          editingTrackRemotes
             ? SysexProtocol.REMOTE_SCOPE_TRACK
@@ -1790,7 +1790,7 @@ public class LumaFaderExtension extends ControllerExtension
 
    private int sysexOverlayId()
    {
-      if (isFourTrackWorkspace())
+      if (isFourTrackMode())
       {
          if (ledDisplayKind == DISPLAY_FOUR_VOLUME)
          {

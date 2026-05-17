@@ -46,29 +46,29 @@ No `/Volumes` mount required. See [docs/DEPLOY.md](docs/DEPLOY.md) for the full 
 - **Firmware:** Bitwig mode — absolute fader CCs, overlay banks, gesture/action CCs, SysEx LEDs, USB MIDI only.
 - **Extension:** **Focus** (blue), **Four-Track** (green), and **User** (red, DAW-agnostic CC) are implemented. Build with `extension/build.zsh`; install `extension/build/LumaFader.bwextension` into Bitwig’s Extensions folder.
 
-## Workspaces (overview)
+## Modes (overview)
 
-| Button (double-tap) | Workspace | Indicator | Role |
+| Button (double-tap) | Mode | Indicator | Role |
 |---------------------|-----------|-----------|------|
 | 4 (top) | Focus | Blue | One track + device chain; follows Bitwig selection |
 | 3 | Four-Track | Green | Four mixer tracks per page; does not follow selection after enter |
 | 2 | User | Red | User-defined CC grid; firmware-only LEDs and pickup |
 
-Workspace switches use **ACTION_CC** pulses on CC **60–62** (see [docs/PROTOCOL.md](docs/PROTOCOL.md)). Overlay holds use CC **50–52**; they engage after a short press (~80 ms) so the same buttons can still double-tap for workspace changes.
+Mode switches use **ACTION_CC** pulses on CC **60–62** (see [docs/PROTOCOL.md](docs/PROTOCOL.md)). Overlay holds use CC **50–52**; they engage after a short press (~80 ms) so the same buttons can still double-tap for mode changes.
 
-### Navigation chords (both workspaces)
+### Navigation chords (both modes)
 
 Chords fire on a **quick tap** of the second button: the tap must release within **250 ms**, the hold button must still be down, and a long hold (≥500 ms) on the tap button does not count. This lets you hold button 1 (fine modifier) or hold an overlay button without accidentally paging.
 
 Example: holding button 4 for volume and pressing button 1 for fine control does **not** change the Four-Track page; a deliberate tap of button 1 while holding 4 does.
 
-## Focus workspace
+## Focus mode
 
-Focus is the default Bitwig mode for detailed editing on **one track at a time**. The extension follows Bitwig’s **cursor track** and **cursor device**; faders and navigation move that selection. The workspace indicator LED (between faders B and C) is **blue**.
+Focus is the default Bitwig mode for detailed editing on **one track at a time**. The extension follows Bitwig’s **cursor track** and **cursor device**; faders and navigation move that selection. The mode indicator LED (between faders B and C) is **blue**.
 
-**Workspace double-taps** (see `src/settings.json`):
+**Mode double-taps** (see `src/settings.json`):
 
-| Button | Workspace |
+| Button | Mode |
 |--------|-----------|
 | 4 (top) | Focus (blue indicator) |
 | 3 | Four-Track (green) |
@@ -144,13 +144,15 @@ Utility fader A (last-touched) uses a firmware rainbow animation (random effect 
 ### Install / reload
 
 ```bash
-cd extension && ./build.zsh
+cd extension && zsh build.zsh   # needs Bitwig installed (API jar); use zsh, not bash
 cp build/LumaFader.bwextension ~/Documents/Bitwig\ Studio/Extensions/
 ```
 
+If the jar is not at `/Applications/Bitwig Studio.app`, set `BITWIG_APP_PATH` or `BITWIG_JAR` before running `build.zsh`.
+
 Reload the extension in Bitwig after copying. Firmware changes: `python3 scripts/deploy.py`.
 
-## Four-Track workspace (mode 2)
+## Four-Track mode (mode 2)
 
 Multi-track mixing on **four visible mixer tracks at a time**. The viewport does **not** follow Bitwig’s selected track after you enter — you can click another track in the DAW while the hardware stays on its current page.
 
@@ -197,16 +199,16 @@ Implementation notes: `FourTrackViewport` manages the visible list and paging; a
 ### Deploy after changes
 
 ```bash
-cd extension && ./build.zsh
+cd extension && zsh build.zsh
 cp build/LumaFader.bwextension ~/Documents/Bitwig\ Studio/Extensions/
 python3 scripts/deploy.py   # firmware
 ```
 
 Reload the extension in Bitwig after copying the `.bwextension`.
 
-## User workspace (mode 3)
+## User mode (mode 3)
 
-DAW-agnostic **absolute MIDI CC** control. **Workspace changes are handled on the firmware** (red/green/blue indicator, user CC grid) — Bitwig does not need to be running. If the LumaFader extension is loaded, it stays in sync via the same workspace action CCs and SysEx, but it does **not** map your User-mode fader CCs. Configure **Generic MIDI** (or any host) to receive CCs on channels **1–4**.
+DAW-agnostic **absolute MIDI CC** control. **Mode changes are handled on the firmware** (red/green/blue indicator, user CC grid) — Bitwig does not need to be running. If the LumaFader extension is loaded, it stays in sync via the same mode action CCs and SysEx, but it does **not** map your User-mode fader CCs. Configure **Generic MIDI** (or any host) to receive CCs on channels **1–4**.
 
 ### Grid
 
@@ -238,7 +240,7 @@ Firmware remembers the last CC value sent per **(CC, channel)**. Faders do not s
 
 ### Fine modifier
 
-Hold **button 1** for smaller steps (same as other workspaces).
+Hold **button 1** for smaller steps (same as other modes).
 
 ### LEDs (firmware only)
 
@@ -260,7 +262,7 @@ If the visible track list skips hidden or collapsed rows, fader slots may not li
 
 ### Track remotes in the device panel
 
-In Focus workspace, navigating **left** from the first device on a track enters **track remote scope**: faders 1–4 (and overlay 5–8) bind to that track’s remote controls page, the arranger focuses the track, and SysEx `remote_scope` reports track (1) for LED semantics.
+In Focus mode, navigating **left** from the first device on a track enters **track remote scope**: faders 1–4 (and overlay 5–8) bind to that track’s remote controls page, the arranger focuses the track, and SysEx `remote_scope` reports track (1) for LED semantics.
 
 **The track remotes row in Bitwig’s device panel does not expand automatically.** That is a Bitwig Controller API limitation, not a firmware bug:
 

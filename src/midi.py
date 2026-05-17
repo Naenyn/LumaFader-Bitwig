@@ -42,7 +42,7 @@ class MidiManager:
             self._handle_incoming(msg)
 
     def _handle_incoming(self, msg):
-        if self.visible_state.workspace_id == cfg.WORKSPACE_USER:
+        if self.visible_state.mode_id == cfg.MODE_USER:
             return
 
         if SystemExclusive is not None and isinstance(msg, SystemExclusive):

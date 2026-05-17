@@ -24,7 +24,7 @@ class LedRenderer:
         self.state.clear_nav_reject_if_expired(now)
         self.hw.clear()
 
-        if self.state.workspace_id == cfg.WORKSPACE_USER:
+        if self.state.mode_id == cfg.MODE_USER:
             controller.user_mode.update_led_timers(now)
             self._render_user_mode(now, controller)
         else:
@@ -36,7 +36,7 @@ class LedRenderer:
             if self.state.nav_reject_edge != cfg.EDGE_NONE:
                 self._apply_nav_reject_flash(self.state.nav_reject_edge)
 
-        self._render_workspace_indicator()
+        self._render_mode_indicator()
         self.hw.show()
 
     def _render_user_mode(self, now, controller):
@@ -97,23 +97,23 @@ class LedRenderer:
             else:
                 self.hw.pixels[idx] = cfg.COLOR_OFF
 
-    def _render_workspace_indicator(self):
-        """Pixel 68 above the faders — solid workspace color (factory: green in reg mode)."""
-        color = cfg.WORKSPACE_INDICATOR_COLORS.get(
-            self.state.workspace_id, cfg.COLOR_OFF
+    def _render_mode_indicator(self):
+        """Pixel 68 above the faders — solid mode color (factory: green in reg mode)."""
+        color = cfg.MODE_INDICATOR_COLORS.get(
+            self.state.mode_id, cfg.COLOR_OFF
         )
         self.hw.pixels[self.hw.INDICATOR_INDEX] = color
 
     def _maybe_pick_rainbow_effect(self, buttons):
         """New random effect each time utility button (2) is pressed in Focus mode."""
-        if self.state.workspace_id != cfg.WORKSPACE_FOCUS:
+        if self.state.mode_id != cfg.MODE_FOCUS:
             return
         if buttons[cfg.BUTTON_2].detected_new_press:
             self._rainbow_effect = random.randint(0, cfg.RAINBOW_EFFECT_COUNT - 1)
 
     def _apply_rainbow_effect_from_fader_b(self, buttons, controller):
         """Hidden: fader B position selects rainbow effect on A (five zones, bottom=0 top=4)."""
-        if self.state.workspace_id != cfg.WORKSPACE_FOCUS:
+        if self.state.mode_id != cfg.MODE_FOCUS:
             return
         if not buttons[cfg.BUTTON_2].pressed:
             return

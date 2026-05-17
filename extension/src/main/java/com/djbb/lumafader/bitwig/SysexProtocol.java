@@ -8,12 +8,12 @@ final class SysexProtocol
    static final int PROTOCOL_VERSION = 0x01;
 
    static final int MSG_VISIBLE_STATE = 0x10;
-   static final int MSG_WORKSPACE_CHANGE = 0x11;
+   static final int MSG_MODE_CHANGE = 0x11;
    static final int MSG_SCOPE_CHANGE = 0x12;
 
-   static final int WORKSPACE_FOCUS = 0;
-   static final int WORKSPACE_FOUR_TRACK = 1;
-   static final int WORKSPACE_USER = 2;
+   static final int MODE_FOCUS = 0;
+   static final int MODE_FOUR_TRACK = 1;
+   static final int MODE_USER = 2;
    static final int REMOTE_SCOPE_DEVICE = 0;
    static final int REMOTE_SCOPE_TRACK = 1;
 

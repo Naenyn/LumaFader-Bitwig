@@ -8,6 +8,8 @@ import sys
 import time
 import supervisor
 
+from settings import _migrate_legacy_mode_keys
+
 SETTINGS_FILE = "settings.json"
 CONFIG_MODE_TIMEOUT = 5.0
 LEARN_MODE_TIMEOUT = 30.0
@@ -156,6 +158,7 @@ class SerialConfigHandler:
         try:
             with open(filepath, "r") as f:
                 data = json.load(f)
+            _migrate_legacy_mode_keys(data)
             self._respond(data)
         except OSError:
             self._respond({"error": f"File not found: {filepath}"})
@@ -191,7 +194,7 @@ class SerialConfigHandler:
             "held_buttons": held,
             "slider_values": slider_values,
             "last_moved_slider": self._last_moved_slider,
-            "workspace": vs.workspace_id,
+            "mode": vs.mode_id,
             "overlay": vs.overlay_id,
             "remote_scope": vs.remote_scope,
             "config_mode": self._config_mode,
@@ -203,6 +206,7 @@ class SerialConfigHandler:
     def _save_settings(self, json_str):
         try:
             data = json.loads(json_str)
+            _migrate_legacy_mode_keys(data)
             with open(SETTINGS_FILE, "w") as f:
                 json.dump(data, f)
             self._respond({

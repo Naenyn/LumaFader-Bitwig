@@ -191,7 +191,7 @@ class SerialConfigHandler:
             "held_buttons": held,
             "slider_values": slider_values,
             "last_moved_slider": self._last_moved_slider,
-            "workspace": vs.workspace_id,
+            "mode": vs.mode_id,
             "overlay": vs.overlay_id,
             "remote_scope": vs.remote_scope,
             "config_mode": self._config_mode,

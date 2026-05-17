@@ -294,7 +294,7 @@
             <div class="section">
                 <h2>Live device</h2>
                 <div class="live-panel" id="livePanel">
-                    <div class="live-item"><div class="live-label">Workspace</div><div class="live-value" id="liveWorkspace">—</div></div>
+                    <div class="live-item"><div class="live-label">Mode</div><div class="live-value" id="liveMode">—</div></div>
                     <div class="live-item"><div class="live-label">Overlay</div><div class="live-value" id="liveOverlay">—</div></div>
                     <div class="live-item"><div class="live-label">Scope</div><div class="live-value" id="liveScope">—</div></div>
                     <div class="live-item"><div class="live-label">Buttons held</div><div class="live-value" id="liveButtons">—</div></div>
@@ -326,9 +326,13 @@
             </div>
 
             <div class="section" id="faderCcSection">
-                <h2>Fader CC numbers</h2>
-                <p class="hint">CC numbers the hardware faders <strong>send</strong> to your DAW (absolute mode). <strong>Learn</strong> fills a field: click Learn, then send one MIDI CC <em>to</em> the LumaFader USB port (e.g. move a control in Bitwig that targets this device). The editor copies that CC# — it does not map another controller’s fader to the LumaFader physically.</p>
-                <div id="faderCcBanks"></div>
+                <h2>Fader CC numbers (fixed protocol)</h2>
+                <p class="hint">Shared by <strong>Focus</strong> and <strong>Four-Track</strong> (not User mode). Firmware sends these absolute CCs on the MIDI channel above; the Bitwig extension listens for the same hardcoded numbers. Layer meaning differs per mode — see table. <strong>Gesture bindings</strong> below choose which button hold selects each layer.</p>
+                <table class="protocol-table" id="faderCcTable">
+                    <thead><tr><th>CCs (A–D)</th><th>Layer</th><th>Hold</th><th>Focus (extension)</th><th>Four-Track (extension)</th></tr></thead>
+                    <tbody id="faderCcTableBody"></tbody>
+                </table>
+                <p class="protocol-warn" id="faderCcMismatch"></p>
             </div>
 
             <div class="section">
@@ -349,7 +353,7 @@
 
             <div class="section">
                 <div class="section-toggle" data-collapse="userModeSection">
-                    <h2>User workspace</h2>
+                    <h2>User mode</h2>
                     <span>▼</span>
                 </div>
                 <div class="section-body" id="userModeSection">
@@ -383,15 +387,26 @@
             { v: 2, l: '3' },
             { v: 3, l: '4 (top)' },
         ];
-        const WORKSPACE_NAMES = ['Focus (blue)', 'Four-Track (green)', 'User (red)'];
+        const MODE_NAMES = ['Focus (blue)', 'Four-Track (green)', 'User (red)'];
         const OVERLAY_NAMES = ['—', 'Overlay 1 (btn 4)', 'Overlay 2 (btn 3)', 'Overlay 3 (btn 2)'];
         const SCOPE_NAMES = ['Track', 'Device'];
 
-        const FADER_BANKS = [
-            { key: 'FADER_CC', title: 'Default (device remotes 1–4)', learn: 0 },
-            { key: 'FADER_CC_OVERLAY', title: 'Overlay 1 — remotes 5–8 (hold btn 4)', learn: 1 },
-            { key: 'FADER_CC_SENDS', title: 'Overlay 2 — sends (hold btn 3)', learn: 2 },
-            { key: 'FADER_CC_UTILITY', title: 'Overlay 3 — utility (hold btn 2)', learn: 3 },
+        const PROTOCOL_FADER_CC = [
+            { key: 'FADER_CC', layer: 'Default', hold: '—', ccs: [20, 21, 22, 23],
+              focus: 'Remotes 1–4 (track or device chain)',
+              fourTrack: 'Send levels on the 4 visible tracks' },
+            { key: 'FADER_CC_OVERLAY', layer: 'Overlay 1', hold: 'Button 4',
+              ccs: [24, 25, 26, 27],
+              focus: 'Remotes 5–8',
+              fourTrack: 'Track volume (visible tracks)' },
+            { key: 'FADER_CC_SENDS', layer: 'Overlay 2', hold: 'Button 3',
+              ccs: [28, 29, 30, 31],
+              focus: 'Sends 1–4 on cursor track',
+              fourTrack: 'Track pan (visible tracks)' },
+            { key: 'FADER_CC_UTILITY', layer: 'Overlay 3', hold: 'Button 2',
+              ccs: [32, 33, 34, 35],
+              focus: 'Utility: last-touched, reserved, pan, volume',
+              fourTrack: 'Same CC bank; extension uses send layer (btn 2 hold)' },
         ];
 
         const PROTOCOL_ACTION_CC = [
@@ -407,10 +422,28 @@
             { key: 'overlay_2', cc: 51, behavior: '127 while overlay 2 held — sends overlay' },
             { key: 'overlay_3', cc: 52, behavior: '127 while overlay 3 held — utility overlay' },
             { key: 'fine_modifier', cc: 53, behavior: '127 while fine held, 0 on release — takeover hint' },
-            { key: 'workspace_focus', cc: 60, behavior: 'Double-tap pulse → Focus workspace (mode 1)' },
-            { key: 'workspace_four_track', cc: 61, behavior: 'Double-tap pulse → Four-Track workspace (mode 2)' },
-            { key: 'workspace_user', cc: 62, behavior: 'Double-tap pulse → User workspace (mode 3); extension sync only' },
+            { key: 'mode_focus', cc: 60, behavior: 'Double-tap pulse → Focus mode (mode 1)' },
+            { key: 'mode_four_track', cc: 61, behavior: 'Double-tap pulse → Four-Track mode (mode 2)' },
+            { key: 'mode_user', cc: 62, behavior: 'Double-tap pulse → User mode (mode 3); extension sync only' },
         ];
+
+        const LEGACY_MODE_ACTION_KEYS = {
+            workspace_focus: 'mode_focus',
+            workspace_four_track: 'mode_four_track',
+            workspace_user: 'mode_user',
+        };
+
+        function migrateLegacyModeKeys(obj) {
+            for (const key of ['ACTION_CC', 'BINDINGS']) {
+                const block = obj[key];
+                if (!block) continue;
+                for (const [oldK, newK] of Object.entries(LEGACY_MODE_ACTION_KEYS)) {
+                    if (block[oldK] === undefined) continue;
+                    if (block[newK] === undefined) block[newK] = block[oldK];
+                    delete block[oldK];
+                }
+            }
+        }
 
         function protocolActionCcObject() {
             const o = {};
@@ -418,10 +451,35 @@
             return o;
         }
 
+        function protocolFaderCcObject() {
+            const o = {};
+            PROTOCOL_FADER_CC.forEach(b => { o[b.key] = b.ccs.slice(); });
+            return o;
+        }
+
+        function showFaderCcMismatch(data) {
+            const warn = document.getElementById('faderCcMismatch');
+            let mismatch = false;
+            PROTOCOL_FADER_CC.forEach(b => {
+                const arr = data[b.key];
+                if (!arr || arr.length !== 4) { mismatch = true; return; }
+                for (let i = 0; i < 4; i++) {
+                    if (arr[i] !== b.ccs[i]) mismatch = true;
+                }
+            });
+            if (mismatch) {
+                warn.textContent =
+                    'Device settings.json has non-standard fader CC banks; saving will restore the fixed protocol table above.';
+                warn.classList.add('show');
+            } else {
+                warn.classList.remove('show');
+            }
+        }
+
         const BINDING_META = [
-            { key: 'workspace_focus', label: 'Workspace → Focus', types: ['double_tap'] },
-            { key: 'workspace_four_track', label: 'Workspace → Four-Track', types: ['double_tap'] },
-            { key: 'workspace_user', label: 'Workspace → User', types: ['double_tap'] },
+            { key: 'mode_focus', label: 'Mode → Focus', types: ['double_tap'] },
+            { key: 'mode_four_track', label: 'Mode → Four-Track', types: ['double_tap'] },
+            { key: 'mode_user', label: 'Mode → User', types: ['double_tap'] },
             { key: 'nav_next_track', label: 'Nav next track', types: ['chord'] },
             { key: 'nav_prev_track', label: 'Nav prev track', types: ['chord'] },
             { key: 'nav_next_device', label: 'Nav next device', types: ['chord'] },
@@ -442,9 +500,6 @@
         let port, reader, writer, readBuffer = '';
         let settings = null;
         let statusPollInterval, pingInterval;
-        let learnTarget = null;
-        let learnBankKey = null;
-        let learnSlot = 0;
         let userBank = 0, userPage = 0;
 
         const connectBtn = document.getElementById('connectBtn');
@@ -499,26 +554,11 @@
                 fineSel.appendChild(opt);
             });
 
-            const faderBanks = document.getElementById('faderCcBanks');
-            FADER_BANKS.forEach((bank, bi) => {
-                const block = document.createElement('div');
-                block.style.marginBottom = '14px';
-                block.innerHTML = `<label style="font-size:11px;color:#3a5a8a">${bank.title}</label>`;
-                const grid = document.createElement('div');
-                grid.className = 'grid-4';
-                grid.dataset.bankKey = bank.key;
-                ['A', 'B', 'C', 'D'].forEach((name, i) => {
-                    const row = document.createElement('div');
-                    row.className = 'cc-row';
-                    row.style.gridColumn = 'span 1';
-                    row.innerHTML = `
-                        <span class="fader-label">${name}</span>
-                        <input type="number" min="0" max="127" data-fader-bank="${bank.key}" data-fader-idx="${i}" id="cc_${bank.key}_${i}">
-                        <button type="button" class="learn" data-learn-bank="${bank.key}" data-learn-slot="${i}" title="MIDI learn">Learn</button>`;
-                    grid.appendChild(row);
-                });
-                block.appendChild(grid);
-                faderBanks.appendChild(block);
+            const faderBody = document.getElementById('faderCcTableBody');
+            PROTOCOL_FADER_CC.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="cc-num">${row.ccs.join(', ')}</td><td>${row.layer}</td><td>${row.hold}</td><td>${row.focus}</td><td>${row.fourTrack}</td>`;
+                faderBody.appendChild(tr);
             });
 
             const tbody = document.getElementById('actionCcTableBody');
@@ -553,12 +593,6 @@
                     const section = t.closest('.section');
                     section.classList.toggle('collapsed');
                 });
-            });
-
-            document.getElementById('faderCcBanks').addEventListener('click', e => {
-                const btn = e.target.closest('[data-learn-bank]');
-                if (!btn) return;
-                toggleLearn(btn.dataset.learnBank, parseInt(btn.dataset.learnSlot, 10), btn);
             });
 
             buildUserGridTabs();
@@ -670,6 +704,7 @@
 
         function populateForm(data) {
             settings = JSON.parse(JSON.stringify(data));
+            migrateLegacyModeKeys(settings);
             if (!settings.USER_CC_GRID) settings.USER_CC_GRID = defaultUserCcGrid();
 
             document.getElementById('midiChannel').value = settings.MIDI_CHANNEL ?? 1;
@@ -678,13 +713,8 @@
             document.getElementById('deltaScale').value = settings.DELTA_SCALE ?? 1.0;
             document.getElementById('userBankSwitch').value = settings.USER_BANK_SWITCH_PAGE ?? 'remember';
 
-            FADER_BANKS.forEach(bank => {
-                const arr = settings[bank.key] || [0, 0, 0, 0];
-                for (let i = 0; i < 4; i++) {
-                    const el = document.getElementById(`cc_${bank.key}_${i}`);
-                    if (el) el.value = arr[i];
-                }
-            });
+            showFaderCcMismatch(settings);
+            Object.assign(settings, protocolFaderCcObject());
 
             const expected = protocolActionCcObject();
             const warn = document.getElementById('actionCcMismatch');
@@ -721,13 +751,7 @@
             out.USER_BANK_SWITCH_PAGE = document.getElementById('userBankSwitch').value;
             out.PROTOCOL_VERSION = out.PROTOCOL_VERSION ?? 1;
 
-            FADER_BANKS.forEach(bank => {
-                out[bank.key] = [];
-                for (let i = 0; i < 4; i++) {
-                    out[bank.key].push(parseInt(document.getElementById(`cc_${bank.key}_${i}`).value, 10));
-                }
-            });
-
+            Object.assign(out, protocolFaderCcObject());
             out.ACTION_CC = protocolActionCcObject();
 
             out.BINDINGS = out.BINDINGS || {};
@@ -761,8 +785,9 @@
 
         function handleStatus(data) {
             if (!data.ready) return;
-            document.getElementById('liveWorkspace').textContent =
-                WORKSPACE_NAMES[data.workspace] ?? ('id ' + data.workspace);
+            const modeId = data.mode ?? data.workspace;
+            document.getElementById('liveMode').textContent =
+                MODE_NAMES[modeId] ?? ('id ' + modeId);
             document.getElementById('liveOverlay').textContent =
                 OVERLAY_NAMES[data.overlay] ?? String(data.overlay);
             document.getElementById('liveScope').textContent =
@@ -781,35 +806,6 @@
             });
         }
 
-        async function toggleLearn(bankKey, slot, btn) {
-            const id = bankKey + ':' + slot;
-            if (learnTarget === id) {
-                await sendCommand('STOP_LEARN');
-                learnTarget = null;
-                learnBankKey = null;
-                btn.classList.remove('active');
-                return;
-            }
-            document.querySelectorAll('.learn.active').forEach(b => b.classList.remove('active'));
-            learnTarget = id;
-            learnBankKey = bankKey;
-            learnSlot = slot;
-            btn.classList.add('active');
-            await sendCommand('START_LEARN|' + slot);
-            showToast('Send a MIDI CC to LumaFader (e.g. move a control in Bitwig)…', 'success', 3500);
-        }
-
-        function applyLearnedCc(_sliderIdx, cc, channel) {
-            document.querySelectorAll('.learn.active').forEach(b => b.classList.remove('active'));
-            if (!learnBankKey) return;
-            const el = document.getElementById(`cc_${learnBankKey}_${learnSlot}`);
-            if (el) el.value = cc;
-            const bank = FADER_BANKS.find(b => b.key === learnBankKey);
-            showToast(`Learned CC ${cc} ch ${channel} → ${bank ? bank.title : learnBankKey} fader ${['A','B','C','D'][learnSlot]}`, 'success');
-            learnTarget = null;
-            learnBankKey = null;
-        }
-
         function handleResponse(data) {
             if (data.error) {
                 showToast('Error: ' + data.error, 'error');
@@ -825,15 +821,8 @@
             }
             if (data.type === 'caps') return;
             if (data.type === 'status') { handleStatus(data); return; }
-            if (data.type === 'learn_started') return;
-            if (data.type === 'learned') {
-                applyLearnedCc(data.slider, data.cc, data.channel);
-                return;
-            }
-            if (data.type === 'learn_timeout' || data.type === 'learn_stopped') {
-                learnTarget = null;
-                document.querySelectorAll('.learn.active').forEach(b => b.classList.remove('active'));
-                if (data.type === 'learn_timeout') showToast('Learn timed out', 'error');
+            if (data.type === 'learn_started' || data.type === 'learned'
+                || data.type === 'learn_timeout' || data.type === 'learn_stopped') {
                 return;
             }
             if (data.MIDI_CHANNEL !== undefined || data.FADER_CC !== undefined) {

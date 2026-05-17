@@ -14,9 +14,9 @@
     "FINE_SCALE": 0.25,
     "DELTA_SCALE": 1.0,
     "BINDINGS": {
-        "workspace_focus": {"type": "double_tap", "button": 0},
-        "workspace_four_track": {"type": "double_tap", "button": 1},
-        "workspace_user": {"type": "double_tap", "button": 2},
+        "mode_focus": {"type": "double_tap", "button": 0},
+        "mode_four_track": {"type": "double_tap", "button": 1},
+        "mode_user": {"type": "double_tap", "button": 2},
         "nav_next_track": {"type": "chord", "hold": 0, "tap": 3},
         "nav_prev_track": {"type": "chord", "hold": 3, "tap": 0},
         "nav_next_device": {"type": "chord", "hold": 1, "tap": 2},

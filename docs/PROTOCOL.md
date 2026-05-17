@@ -2,15 +2,15 @@
 
 All controller → host traffic is **USB MIDI only** (one configurable channel, default 1).
 
-**Fader CC banks** and **gesture bindings** are configurable in `settings.json`. **ACTION_CC** numbers (40–47, 50–53, 60–62) are fixed to match the Bitwig extension and are always reset to defaults on load.
+**Gesture bindings**, **USER_CC_GRID**, and MIDI channel/sensitivity are configurable in `settings.json`. **Fader CC banks** (20–35) and **ACTION_CC** numbers (40–47, 50–53, 60–62) are fixed to match the Bitwig extension and are always reset to defaults on load.
 
 ## Controller → Bitwig
 
 ### Faders (absolute CC) — 4 CCs
 
-| Setting | Default | Behavior |
-|---------|---------|----------|
-| `FADER_CC[0..3]` | 20–23 | Absolute position **0–127** when the fader moves |
+| CCs | Default | Behavior |
+|-----|---------|----------|
+| 20–23 (`FADER_CC`) | fixed | Absolute position **0–127** when the fader moves |
 
 CC **20–35** are applied in the Bitwig extension via `onMidi` (Bitwig’s controller “relative scaling” does not apply to `parameter.set()`). On **overlay** change, the extension **ramps** each fader from the current host value toward the physical position (≤4 CC per message). After **fine-modifier release**, firmware maps fader motion as a delta from the release anchor onto the fine-tuned value (relative pickup); the extension does not arm takeover on fine release. `ACTION_CC.fine_modifier` (53): 127 while button 1 held, 0 on release. Firmware only sends CC when the fader moves. LEDs show state via SysEx.
 
@@ -20,12 +20,12 @@ No per-button MIDI. Buttons are scanned locally for gestures and overlays.
 
 ### Focus overlay (button 4) — alternate fader CCs
 
-| Setting | Default | Behavior |
-|---------|---------|----------|
-| `FADER_CC` | 20–23 | Remotes 1–4 (default) |
-| `FADER_CC_OVERLAY` | 24–27 | Remotes 5–8 while button 4 held |
-| `FADER_CC_SENDS` | 28–31 | Sends 1–4 on selected track while button 3 held |
-| `FADER_CC_UTILITY` | 32–35 | Utility while button 2 held: A last-touched, B reserved, C pan, D volume |
+| Bank | CCs | Focus | Four-Track |
+|------|-----|-------|------------|
+| `FADER_CC` | 20–23 | Remotes 1–4 (default) | Send levels on visible tracks |
+| `FADER_CC_OVERLAY` | 24–27 | Remotes 5–8 while button 4 held | Track volume |
+| `FADER_CC_SENDS` | 28–31 | Sends 1–4 on cursor track while button 3 held | Track pan |
+| `FADER_CC_UTILITY` | 32–35 | Utility while button 2 held: last-touched, reserved, pan, volume | Same CCs; extension keeps send layer on btn 2 hold |
 | `BINDINGS.overlay_1` | hold, button 4 | Remotes 5–8 |
 | `BINDINGS.overlay_2` | hold, button 3 | Sends 1–4 |
 | `BINDINGS.overlay_3` | hold, button 2 | Utility layer |
@@ -65,7 +65,7 @@ Framing: standard `F0` … `F7` (42 bytes total). The extension sends full frami
 
 | Offset | Field |
 |--------|--------|
-| 0 | workspace_id |
+| 0 | mode_id |
 | 1 | overlay_id |
 | 2 | remote_scope |
 | 3 + 5×i | fader[i]: mode, value, R, G, B |
@@ -76,10 +76,10 @@ Fader modes: `0` unipolar, `1` bipolar (symmetric), `2` dim (ignore motion), `3`
 
 Fader/button RGB bytes are **0–127 per channel**; firmware scales to 0–255 for NeoPixels.
 
-**Workspace indicator** (NeoPixel index 68, between faders B and C): solid color from `workspace_id` — focus blue, four-track green, user red.
+**Mode indicator** (NeoPixel index 68, between faders B and C): solid color from `mode_id` — focus blue, four-track green, user red.
 
 **Button LEDs** (pixels 0–3, bottom = button 1): firmware-local while held — fine off-white, button 2 red (utility), button 3 green (sends), button 4 blue (remotes 5–8). SysEx `button_color` is unused for now.
 
-### `0x11` Workspace change — 1 byte workspace_id
+### `0x11` Mode change — 1 byte mode_id
 
 ### `0x12` Scope change — 1 byte remote_scope

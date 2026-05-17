@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Four-Track workspace viewport: visible mixer tracks in quantized pages of four,
+ * Four-Track mode viewport: visible mixer tracks in quantized pages of four,
  * plus a shared send index across the page. Does not follow Bitwig selection after init.
  */
 final class FourTrackViewport

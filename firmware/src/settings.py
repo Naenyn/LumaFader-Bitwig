@@ -15,9 +15,9 @@ class Settings:
         "FINE_SCALE": 0.25,
         "DELTA_SCALE": 1.0,
         "BINDINGS": {
-            "workspace_focus": {"type": "double_tap", "button": cfg.BUTTON_1},
-            "workspace_four_track": {"type": "double_tap", "button": cfg.BUTTON_2},
-            "workspace_user": {"type": "double_tap", "button": cfg.BUTTON_3},
+            "mode_focus": {"type": "double_tap", "button": cfg.BUTTON_1},
+            "mode_four_track": {"type": "double_tap", "button": cfg.BUTTON_2},
+            "mode_user": {"type": "double_tap", "button": cfg.BUTTON_3},
             "nav_next_track": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
             "nav_prev_track": {"type": "chord", "hold": cfg.BUTTON_4, "tap": cfg.BUTTON_1},
             "nav_next_device": {"type": "chord", "hold": cfg.BUTTON_2, "tap": cfg.BUTTON_3},

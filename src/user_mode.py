@@ -1,4 +1,4 @@
-"""User workspace (mode 3): DAW-agnostic CC grid with per-bank MIDI channels and pickup."""
+"""User mode (mode 3): DAW-agnostic CC grid with per-bank MIDI channels and pickup."""
 
 import time
 
@@ -46,7 +46,7 @@ class UserMode:
         self._fine_pickup_anchor = [0] * 4
         self._fine_pickup_sent = [0] * 4
 
-    def reset_on_workspace_enter(self):
+    def reset_on_mode_enter(self):
         self.bank = 1
         self.page = 1
         self.view = 0

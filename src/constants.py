@@ -1,6 +1,6 @@
 # Timing
 DOUBLE_PRESS_TIME = 0.3
-# Overlay hold: short delay so double-tap workspace still works; much less than DOUBLE_PRESS_TIME.
+# Overlay hold: short delay so double-tap mode switch still works; much less than DOUBLE_PRESS_TIME.
 OVERLAY_HOLD_DELAY_S = 0.08
 # Nav chord tap: fire on release only if the tap button was down at most this long.
 CHORD_TAP_MAX_S = 0.25
@@ -11,7 +11,7 @@ USER_NAV_FLASH_S = 0.2
 # Pickup deadband (Cherry firmware).
 CC_THRESHOLD = 2
 
-# User workspace: bank base colors (banks 1–4). Pages use PAGE_SHADE on top.
+# User mode: bank base colors (banks 1–4). Pages use PAGE_SHADE on top.
 USER_BANK_COLORS = [
     (200, 90, 40),   # bank 1
     (40, 160, 90),   # bank 2
@@ -53,7 +53,7 @@ SYSEX_DEVICE_ID = 0x01
 SYSEX_PROTOCOL_VERSION = 0x01
 
 MSG_VISIBLE_STATE = 0x10
-MSG_WORKSPACE_CHANGE = 0x11
+MSG_MODE_CHANGE = 0x11
 MSG_SCOPE_CHANGE = 0x12
 
 # Fader LED modes (from Bitwig)
@@ -95,16 +95,16 @@ EDGE_RIGHT = 2
 EDGE_TOP = 3
 EDGE_BOTTOM = 4
 
-# Workspace IDs (in SysEx from Bitwig)
-WORKSPACE_FOCUS = 0
-WORKSPACE_FOUR_TRACK = 1
-WORKSPACE_USER = 2
+# Mode IDs (in SysEx from Bitwig)
+MODE_FOCUS = 0
+MODE_FOUR_TRACK = 1
+MODE_USER = 2
 
-# Top indicator LED (pixel 68, between faders B and C) — one color per workspace.
-WORKSPACE_INDICATOR_COLORS = {
-    WORKSPACE_FOCUS: (0, 0, 255),        # mode 1: blue
-    WORKSPACE_FOUR_TRACK: (0, 255, 0),   # mode 2: green
-    WORKSPACE_USER: (255, 0, 0),         # mode 3: red
+# Top indicator LED (pixel 68, between faders B and C) — one color per mode.
+MODE_INDICATOR_COLORS = {
+    MODE_FOCUS: (0, 0, 255),        # mode 1: blue
+    MODE_FOUR_TRACK: (0, 255, 0),   # mode 2: green
+    MODE_USER: (255, 0, 0),         # mode 3: red
 }
 
 # Hardware button indices (bottom = 0, top = 3)

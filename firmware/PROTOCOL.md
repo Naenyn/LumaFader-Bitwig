@@ -13,7 +13,7 @@
 
 | ID | Meaning | Param |
 |----|---------|-------|
-| 1 | Workspace switch | 0 Focus, 1 Four-Track, 2 User |
+| 1 | Mode switch | 0 Focus, 1 Four-Track, 2 User |
 | 2 | Remote scope toggle | unused |
 | 3–10 | Navigation | unused |
 | 11 | Overlay hold | 1–3 while held |
@@ -37,7 +37,7 @@ Payload after framing:
 
 | Offset | Field |
 |--------|--------|
-| 0 | workspace_id |
+| 0 | mode_id |
 | 1 | overlay_id |
 | 2 | remote_scope |
 | 3 + 5×i | fader[i]: mode, value, R, G, B |
@@ -46,9 +46,9 @@ Payload after framing:
 
 Fader modes: `0` unipolar, `1` bipolar, `2` dim/unavailable (ignore fader motion).
 
-### `0x11` Workspace change (1 byte)
+### `0x11` Mode change (1 byte)
 
-Single byte: new workspace_id.
+Single byte: new mode_id.
 
 ### `0x12` Scope change (1 byte)
 

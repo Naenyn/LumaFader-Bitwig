@@ -5,7 +5,7 @@ class VisibleState:
     """LED / UI state driven by Bitwig via SysEx. Firmware does not own semantics."""
 
     def __init__(self):
-        self.workspace_id = cfg.WORKSPACE_FOCUS
+        self.mode_id = cfg.MODE_FOCUS
         self.overlay_id = 0
         self.remote_scope = 0
         self.fader_mode = [cfg.FADER_MODE_UNIPOLAR] * 4
@@ -21,7 +21,7 @@ class VisibleState:
         if len(payload) < 36:
             return False
 
-        self.workspace_id = payload[0]
+        self.mode_id = payload[0]
         self.overlay_id = payload[1]
         self.remote_scope = payload[2]
 

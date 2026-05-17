@@ -47,6 +47,6 @@ Restart the device after saving settings from the web utility.
 | Direction | Transport | Purpose |
 |-----------|-----------|---------|
 | Controller → Bitwig | Relative CC, notes, gesture CCs | Fader deltas, buttons, navigation gestures |
-| Bitwig → Controller | SysEx (`0x7D` dev ID) | LED layout, workspace/overlay/scope, nav-reject flashes |
+| Bitwig → Controller | SysEx (`0x7D` dev ID) | LED layout, mode/overlay/scope, nav-reject flashes |
 
 See `lumafader_bitwig_v1_spec.txt` at the repo root and `src/sysex_protocol.py` for message layouts.

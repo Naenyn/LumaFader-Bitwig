@@ -18,11 +18,11 @@ _NAV_ACTIONS = frozenset(
         "nav_prev_send",
     }
 )
-_WORKSPACE_SWITCH_ACTIONS = frozenset(
+_MODE_SWITCH_ACTIONS = frozenset(
     {
-        "workspace_focus",
-        "workspace_four_track",
-        "workspace_user",
+        "mode_focus",
+        "mode_four_track",
+        "mode_user",
     }
 )
 _FOCUS_NAV_ACTIONS = frozenset(
@@ -41,10 +41,10 @@ _FOUR_TRACK_NAV_ACTIONS = frozenset(
         "nav_prev_send",
     }
 )
-_WORKSPACE_ACTION_TO_ID = {
-    "workspace_focus": cfg.WORKSPACE_FOCUS,
-    "workspace_four_track": cfg.WORKSPACE_FOUR_TRACK,
-    "workspace_user": cfg.WORKSPACE_USER,
+_MODE_ACTION_TO_ID = {
+    "mode_focus": cfg.MODE_FOCUS,
+    "mode_four_track": cfg.MODE_FOUR_TRACK,
+    "mode_user": cfg.MODE_USER,
 }
 
 
@@ -60,7 +60,7 @@ class LumaFaderController:
         self.user_mode = UserMode(self.sliders, self.buttons)
         self.channel = settings.get_midi_channel()
         self.config_mode = False
-        self._last_workspace = visible_state.workspace_id
+        self._last_mode = visible_state.mode_id
         self._overlay_remotes_5_8 = False
         self._overlay_sends = False
         self._overlay_utility = False
@@ -94,45 +94,45 @@ class LumaFaderController:
 
     def process(self):
         pending_actions = self.gestures.update()
-        self._apply_workspace_switches(pending_actions)
+        self._apply_mode_switches(pending_actions)
 
-        workspace_id = self.visible_state.workspace_id
-        if workspace_id != self._last_workspace:
-            if workspace_id == cfg.WORKSPACE_USER:
-                self.user_mode.reset_on_workspace_enter()
-            self._last_workspace = workspace_id
+        mode_id = self.visible_state.mode_id
+        if mode_id != self._last_mode:
+            if mode_id == cfg.MODE_USER:
+                self.user_mode.reset_on_mode_enter()
+            self._last_mode = mode_id
 
-        non_workspace = [
-            name for name in pending_actions if name not in _WORKSPACE_SWITCH_ACTIONS
+        non_mode = [
+            name for name in pending_actions if name not in _MODE_SWITCH_ACTIONS
         ]
 
-        if workspace_id == cfg.WORKSPACE_USER:
-            self._process_user_workspace(non_workspace)
+        if mode_id == cfg.MODE_USER:
+            self._process_user_mode(non_mode)
             return
 
         self._update_fine_state()
-        self._send_gesture_actions(non_workspace)
+        self._send_gesture_actions(non_mode)
         self._update_overlay_state()
         self._send_fader_positions()
 
-    def _apply_workspace_switches(self, actions):
-        """Firmware owns workspace/mode; Bitwig SysEx is optional sync only."""
+    def _apply_mode_switches(self, actions):
+        """Firmware owns mode; Bitwig SysEx is optional sync only."""
         pressed_count = sum(1 for button in self.buttons if button.pressed)
         for name in actions:
-            if name not in _WORKSPACE_SWITCH_ACTIONS:
+            if name not in _MODE_SWITCH_ACTIONS:
                 continue
             if pressed_count > 1:
                 continue
-            new_id = _WORKSPACE_ACTION_TO_ID.get(name)
+            new_id = _MODE_ACTION_TO_ID.get(name)
             if new_id is None:
                 continue
-            if new_id != self.visible_state.workspace_id:
-                self.visible_state.workspace_id = new_id
+            if new_id != self.visible_state.mode_id:
+                self.visible_state.mode_id = new_id
                 self.visible_state.overlay_id = 0
                 self._release_overlay_ccs()
             self.midi.send_action_pulse(settings.get_action_cc(name), self.channel)
 
-    def _process_user_workspace(self, pending_actions):
+    def _process_user_mode(self, pending_actions):
         user_actions = []
         other_actions = []
         for name in pending_actions:
@@ -164,10 +164,10 @@ class LumaFaderController:
             return
 
         pressed_count = sum(1 for button in self.buttons if button.pressed)
-        workspace_id = self.visible_state.workspace_id
-        if workspace_id == cfg.WORKSPACE_FOUR_TRACK:
+        mode_id = self.visible_state.mode_id
+        if mode_id == cfg.MODE_FOUR_TRACK:
             allowed_nav = _FOUR_TRACK_NAV_ACTIONS
-        elif workspace_id == cfg.WORKSPACE_USER:
+        elif mode_id == cfg.MODE_USER:
             allowed_nav = frozenset()
         else:
             allowed_nav = _FOCUS_NAV_ACTIONS
@@ -178,7 +178,7 @@ class LumaFaderController:
         for name in actions:
             if settings.is_overlay_action(name):
                 continue
-            if name in _WORKSPACE_SWITCH_ACTIONS:
+            if name in _MODE_SWITCH_ACTIONS:
                 continue
             if name in _NAV_ACTIONS and name not in allowed_nav:
                 continue
@@ -187,7 +187,7 @@ class LumaFaderController:
             self.midi.send_action_pulse(settings.get_action_cc(name), self.channel)
 
     def _release_overlay_ccs(self):
-        """Clear overlay held CCs before a workspace pulse (same physical buttons)."""
+        """Clear overlay held CCs before a mode-switch pulse (same physical buttons)."""
         if self._overlay_remotes_5_8:
             self._overlay_remotes_5_8 = False
             self.midi.send_cc_held(
