@@ -52,6 +52,32 @@ _LEGACY_MODE_ACTION_KEYS = {
 }
 
 # Binding keys per mode; ACTION_CC stays overlay_1 / overlay_2 / overlay_3.
+# Focus fader views (CC banks). Trigger: "default" or button index 0–3.
+FOCUS_FADER_LAYER_IDS = (
+    "remotes_1_4",
+    "remotes_5_8",
+    "sends",
+    "utility",
+)
+FOCUS_LAYER_CC_BANK = {
+    "remotes_1_4": "default",
+    "remotes_5_8": "remotes_5_8",
+    "sends": "sends",
+    "utility": "utility",
+}
+FOCUS_LAYER_OVERLAY_ACTION = {
+    "remotes_5_8": "overlay_1",
+    "sends": "overlay_2",
+    "utility": "overlay_3",
+}
+DEFAULT_FOCUS_FADER_LAYERS = {
+    "remotes_1_4": "default",
+    "remotes_5_8": cfg.BUTTON_4,
+    "sends": cfg.BUTTON_3,
+    "utility": cfg.BUTTON_2,
+}
+FOCUS_LAYER_HOLD_PRIORITY = ("utility", "sends", "remotes_5_8")
+
 FOCUS_OVERLAY_BINDINGS = (
     "focus_overlay_1",
     "focus_overlay_2",
@@ -103,16 +129,32 @@ def _migrate_legacy_overlay_bindings(settings):
                 )
 
 
-def _default_overlay_bindings():
-    """Same default buttons for both modes (btn 4/3/2 holds)."""
+def _default_four_track_overlay_bindings():
     return {
-        "focus_overlay_1": {"type": "hold", "button": cfg.BUTTON_4},
-        "focus_overlay_2": {"type": "hold", "button": cfg.BUTTON_3},
-        "focus_overlay_3": {"type": "hold", "button": cfg.BUTTON_2},
         "four_track_overlay_1": {"type": "hold", "button": cfg.BUTTON_4},
         "four_track_overlay_2": {"type": "hold", "button": cfg.BUTTON_3},
         "four_track_overlay_3": {"type": "hold", "button": cfg.BUTTON_2},
     }
+
+
+def _migrate_focus_fader_layers(settings):
+    """Build FOCUS_FADER_LAYERS from legacy focus_overlay_* hold bindings."""
+    if "FOCUS_FADER_LAYERS" in settings:
+        return
+    bindings = settings.get("BINDINGS")
+    if not isinstance(bindings, dict):
+        settings["FOCUS_FADER_LAYERS"] = dict(DEFAULT_FOCUS_FADER_LAYERS)
+        return
+    layers = dict(DEFAULT_FOCUS_FADER_LAYERS)
+    slot_layers = ("remotes_5_8", "sends", "utility")
+    for slot, binding_key in enumerate(FOCUS_OVERLAY_BINDINGS):
+        spec = bindings.get(binding_key)
+        if not isinstance(spec, dict) or spec.get("type") != "hold":
+            continue
+        btn = spec.get("button")
+        if isinstance(btn, int) and 0 <= btn <= 3:
+            layers[slot_layers[slot]] = btn
+    settings["FOCUS_FADER_LAYERS"] = layers
 
 
 DEFAULT_ACTION_CC = {
@@ -158,7 +200,8 @@ class Settings:
             "nav_prev_track_page": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
             "nav_next_send": {"type": "chord", "hold": cfg.BUTTON_3, "tap": cfg.BUTTON_2},
             "nav_prev_send": {"type": "chord", "hold": cfg.BUTTON_2, "tap": cfg.BUTTON_3},
-            **_default_overlay_bindings(),
+            "FOCUS_FADER_LAYERS": dict(DEFAULT_FOCUS_FADER_LAYERS),
+            **_default_four_track_overlay_bindings(),
             "nav_user_bank_down": {"type": "chord", "hold": cfg.BUTTON_4, "tap": cfg.BUTTON_1},
             "nav_user_bank_up": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
             "nav_user_page_up": {"type": "chord", "hold": cfg.BUTTON_2, "tap": cfg.BUTTON_3},
@@ -181,6 +224,7 @@ class Settings:
                 self.settings = json.load(f)
             _migrate_legacy_mode_keys(self.settings)
             _migrate_legacy_overlay_bindings(self.settings)
+            _migrate_focus_fader_layers(self.settings)
             if not self._validate():
                 print("Invalid settings; using defaults.")
                 self._use_defaults()
@@ -200,12 +244,41 @@ class Settings:
             return False
         if len(self.settings.get("FADER_CC_UTILITY", self.DEFAULTS["FADER_CC_UTILITY"])) != 4:
             return False
+        if not self._validate_focus_fader_layers():
+            return False
         action_cc = self.settings["ACTION_CC"]
         for name in ACTION_CC_KEYS:
             if name not in action_cc:
                 return False
             cc = action_cc[name]
             if not isinstance(cc, int) or cc < 0 or cc > 127:
+                return False
+        return True
+
+    def _validate_focus_fader_layers(self):
+        layers = self.settings.get("FOCUS_FADER_LAYERS")
+        if not isinstance(layers, dict):
+            return False
+        triggers = set()
+        for layer_id in FOCUS_FADER_LAYER_IDS:
+            if layer_id not in layers:
+                return False
+            trigger = layers[layer_id]
+            if trigger == "default":
+                norm = "default"
+            elif isinstance(trigger, int) and 0 <= trigger <= 3:
+                norm = int(trigger)
+            else:
+                return False
+            if norm in triggers:
+                return False
+            triggers.add(norm)
+        if len(triggers) != 4 or "default" not in triggers:
+            return False
+        fine = int(self.settings.get("FINE_MODIFIER_BUTTON", cfg.BUTTON_1))
+        for layer_id in FOCUS_FADER_LAYER_IDS:
+            trigger = layers[layer_id]
+            if trigger != "default" and int(trigger) == fine:
                 return False
         return True
 
@@ -220,8 +293,14 @@ class Settings:
                 self.settings[key] = value
         if "USER_CC_GRID" not in self.settings:
             self.settings["USER_CC_GRID"] = _default_user_cc_grid()
+        if "FOCUS_FADER_LAYERS" not in self.settings:
+            self.settings["FOCUS_FADER_LAYERS"] = dict(DEFAULT_FOCUS_FADER_LAYERS)
+        else:
+            merged = dict(DEFAULT_FOCUS_FADER_LAYERS)
+            merged.update(self.settings["FOCUS_FADER_LAYERS"])
+            self.settings["FOCUS_FADER_LAYERS"] = merged
         bindings = self.settings.setdefault("BINDINGS", {})
-        for key, value in _default_overlay_bindings().items():
+        for key, value in _default_four_track_overlay_bindings().items():
             if key not in bindings:
                 bindings[key] = value
         # Fixed contract with LumaFaderExtension.java — not user-configurable.
@@ -265,14 +344,30 @@ class Settings:
     def overlay_binding_keys_for_mode(mode_id):
         if mode_id == cfg.MODE_FOUR_TRACK:
             return FOUR_TRACK_OVERLAY_BINDINGS
-        if mode_id == cfg.MODE_FOCUS:
-            return FOCUS_OVERLAY_BINDINGS
         return ()
+
+    def get_focus_fader_layers(self):
+        layers = self.settings.get("FOCUS_FADER_LAYERS", DEFAULT_FOCUS_FADER_LAYERS)
+        out = dict(DEFAULT_FOCUS_FADER_LAYERS)
+        if isinstance(layers, dict):
+            out.update(layers)
+        return out
+
+    def focus_layer_cc_bank(self, layer_id):
+        return FOCUS_LAYER_CC_BANK.get(layer_id, "default")
+
+    def focus_layer_overlay_action(self, layer_id):
+        return FOCUS_LAYER_OVERLAY_ACTION.get(layer_id)
+
+    def focus_layer_button(self, layer_id):
+        trigger = self.get_focus_fader_layers().get(layer_id, "default")
+        if trigger == "default":
+            return None
+        return int(trigger)
 
     def is_overlay_binding_name(self, name):
         return (
-            name in FOCUS_OVERLAY_BINDINGS
-            or name in FOUR_TRACK_OVERLAY_BINDINGS
+            name in FOUR_TRACK_OVERLAY_BINDINGS
             or name in OVERLAY_CC_ACTIONS
         )
 

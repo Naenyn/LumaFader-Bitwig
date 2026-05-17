@@ -104,18 +104,26 @@ class LedRenderer:
         )
         self.hw.pixels[self.hw.INDICATOR_INDEX] = color
 
+    def _focus_utility_button(self):
+        btn = settings.focus_layer_button("utility")
+        if btn is None:
+            return cfg.BUTTON_2
+        return btn
+
     def _maybe_pick_rainbow_effect(self, buttons):
-        """New random effect each time utility button (2) is pressed in Focus mode."""
+        """New random effect each time utility layer button is pressed in Focus mode."""
         if self.state.mode_id != cfg.MODE_FOCUS:
             return
-        if buttons[cfg.BUTTON_2].detected_new_press:
+        util_btn = self._focus_utility_button()
+        if buttons[util_btn].detected_new_press:
             self._rainbow_effect = random.randint(0, cfg.RAINBOW_EFFECT_COUNT - 1)
 
     def _apply_rainbow_effect_from_fader_b(self, buttons, controller):
         """Hidden: fader B position selects rainbow effect on A (five zones, bottom=0 top=4)."""
         if self.state.mode_id != cfg.MODE_FOCUS:
             return
-        if not buttons[cfg.BUTTON_2].pressed:
+        util_btn = self._focus_utility_button()
+        if not buttons[util_btn].pressed:
             return
         if self.state.fader_mode[cfg.UTILITY_FADER_LAST_TOUCHED] != cfg.FADER_MODE_RAINBOW:
             return

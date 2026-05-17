@@ -8,7 +8,11 @@ import sys
 import time
 import supervisor
 
-from settings import _migrate_legacy_mode_keys, _migrate_legacy_overlay_bindings
+from settings import (
+    _migrate_focus_fader_layers,
+    _migrate_legacy_mode_keys,
+    _migrate_legacy_overlay_bindings,
+)
 
 SETTINGS_FILE = "settings.json"
 CONFIG_MODE_TIMEOUT = 5.0
@@ -160,6 +164,7 @@ class SerialConfigHandler:
                 data = json.load(f)
             _migrate_legacy_mode_keys(data)
             _migrate_legacy_overlay_bindings(data)
+            _migrate_focus_fader_layers(data)
             self._respond(data)
         except OSError:
             self._respond({"error": f"File not found: {filepath}"})
@@ -209,6 +214,7 @@ class SerialConfigHandler:
             data = json.loads(json_str)
             _migrate_legacy_mode_keys(data)
             _migrate_legacy_overlay_bindings(data)
+            _migrate_focus_fader_layers(data)
             with open(SETTINGS_FILE, "w") as f:
                 json.dump(data, f)
             self._respond({

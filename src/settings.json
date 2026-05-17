@@ -8,7 +8,8 @@
         "FADER_CC_SENDS: absolute CC while button 3 held → sends 1–4.",
         "FADER_CC_UTILITY: absolute CC while button 2 held → last-touched / pan / volume.",
         "FINE_MODIFIER_BUTTON: button 1 (bottom); finer steps, no button MIDI.",
-        "focus_overlay_* / four_track_overlay_*: per-mode hold buttons for fader layers."
+        "FOCUS_FADER_LAYERS: which button (or default) activates each Focus fader view.",
+        "four_track_overlay_*: Four-Track hold buttons for fader layers."
     ],
     "PROTOCOL_VERSION": 1,
     "MIDI_CHANNEL": 1,
@@ -19,6 +20,12 @@
     "FINE_MODIFIER_BUTTON": 0,
     "FINE_SCALE": 0.25,
     "DELTA_SCALE": 1.0,
+    "FOCUS_FADER_LAYERS": {
+        "remotes_1_4": "default",
+        "remotes_5_8": 3,
+        "sends": 2,
+        "utility": 1
+    },
     "ACTION_CC": {
         "mode_focus": 60,
         "mode_four_track": 61,
@@ -48,9 +55,6 @@
         "nav_prev_track_page": {"type": "chord", "hold": 0, "tap": 3},
         "nav_next_send": {"type": "chord", "hold": 2, "tap": 1},
         "nav_prev_send": {"type": "chord", "hold": 1, "tap": 2},
-        "focus_overlay_1": {"type": "hold", "button": 3},
-        "focus_overlay_2": {"type": "hold", "button": 2},
-        "focus_overlay_3": {"type": "hold", "button": 1},
         "four_track_overlay_1": {"type": "hold", "button": 3},
         "four_track_overlay_2": {"type": "hold", "button": 2},
         "four_track_overlay_3": {"type": "hold", "button": 1},

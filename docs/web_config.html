@@ -418,10 +418,10 @@
                 <h2>Focus mode</h2>
                 <p class="hint">Blue indicator. Cursor track + device chain; remotes, sends, and utility overlays.</p>
 
-                <h3>Overlay holds</h3>
-                <p class="hint">Which button to hold for each fader layer (CC 50–52 to Bitwig).</p>
-                <div id="bindingFieldsFocusOverlay"></div>
-                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_focus_overlay"></p>
+                <h3>Fader layers</h3>
+                <p class="hint">Four Focus views — assign each to <strong>Default</strong> (no button held) or a hold button. The fine modifier button is not available. Each trigger can only be used once.</p>
+                <div id="focusLayerMap"></div>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_focus_layers"></p>
 
                 <h3>Navigation chords</h3>
                 <div id="bindingFieldsFocusNav"></div>
@@ -545,7 +545,6 @@
 
         const BINDING_ROOT_IDS = {
             shared: 'bindingFieldsShared',
-            focus_overlay: 'bindingFieldsFocusOverlay',
             focus_nav: 'bindingFieldsFocusNav',
             four_track_overlay: 'bindingFieldsFourTrackOverlay',
             four_track_nav: 'bindingFieldsFourTrackNav',
@@ -591,6 +590,21 @@
             }
         }
 
+        function migrateLegacyFocusLayers(obj) {
+            if (obj.FOCUS_FADER_LAYERS) return;
+            const bindings = obj.BINDINGS || {};
+            const layers = { ...DEFAULT_FOCUS_FADER_LAYERS };
+            const slotLayers = ['remotes_5_8', 'sends', 'utility'];
+            const keys = ['focus_overlay_1', 'focus_overlay_2', 'focus_overlay_3'];
+            keys.forEach((key, i) => {
+                const spec = bindings[key];
+                if (spec && spec.type === 'hold' && typeof spec.button === 'number') {
+                    layers[slotLayers[i]] = spec.button;
+                }
+            });
+            obj.FOCUS_FADER_LAYERS = layers;
+        }
+
         function protocolActionCcObject() {
             const o = {};
             PROTOCOL_ACTION_CC.forEach(r => { o[r.key] = r.cc; });
@@ -626,9 +640,6 @@
             { key: 'mode_focus', label: 'Focus Mode', group: 'shared', types: ['double_tap'] },
             { key: 'mode_four_track', label: 'Four-Track Mode', group: 'shared', types: ['double_tap'] },
             { key: 'mode_user', label: 'User Mode', group: 'shared', types: ['double_tap'] },
-            { key: 'focus_overlay_1', label: 'Overlay 1 — remotes 5–8', group: 'focus_overlay', types: ['hold'] },
-            { key: 'focus_overlay_2', label: 'Overlay 2 — sends', group: 'focus_overlay', types: ['hold'] },
-            { key: 'focus_overlay_3', label: 'Overlay 3 — utility', group: 'focus_overlay', types: ['hold'] },
             { key: 'nav_next_track', label: 'Nav next track', group: 'focus_nav', types: ['chord'] },
             { key: 'nav_prev_track', label: 'Nav prev track', group: 'focus_nav', types: ['chord'] },
             { key: 'nav_next_device', label: 'Nav next device', group: 'focus_nav', types: ['chord'] },
@@ -646,6 +657,20 @@
             { key: 'nav_user_page_down', label: 'Page down', group: 'user', types: ['chord'] },
         ];
 
+        const FOCUS_FADER_LAYERS = [
+            { id: 'remotes_1_4', label: 'Remotes 1–4', hint: 'Default layer — cursor track/device remotes (CC 20–23)' },
+            { id: 'remotes_5_8', label: 'Remotes 5–8', hint: 'Extended remotes (CC 24–27, overlay CC 50)' },
+            { id: 'sends', label: 'Sends 1–4', hint: 'Track sends (CC 28–31, overlay CC 51)' },
+            { id: 'utility', label: 'Utility', hint: 'Last-touched / pan / volume (CC 32–35, overlay CC 52)' },
+        ];
+
+        const DEFAULT_FOCUS_FADER_LAYERS = {
+            remotes_1_4: 'default',
+            remotes_5_8: 3,
+            sends: 2,
+            utility: 1,
+        };
+
         const CONFLICT_SCOPES = [
             {
                 id: 'shared',
@@ -662,11 +687,10 @@
                 holdIds: () => BINDING_META.filter(m => m.types.includes('hold')).map(m => m.key),
             },
             {
-                id: 'focus_overlay',
-                kind: 'button',
-                label: 'Focus overlay holds',
-                warnId: 'conflictWarn_focus_overlay',
-                slotIds: () => BINDING_META.filter(m => m.group === 'focus_overlay').map(m => m.key),
+                id: 'focus_layers',
+                kind: 'focus_layers',
+                label: 'Focus fader layers',
+                warnId: 'conflictWarn_focus_layers',
             },
             {
                 id: 'four_track_overlay',
@@ -784,6 +808,8 @@
                 });
             });
 
+            buildFocusLayerMapStatic();
+
             const sliderBars = document.getElementById('sliderBars');
             ['A', 'B', 'C', 'D'].forEach((name, i) => {
                 const w = document.createElement('div');
@@ -865,6 +891,162 @@
 
         function bindingMetaFor(key) {
             return BINDING_META.find(m => m.key === key);
+        }
+
+        function getFineModifierButton() {
+            const sel = document.getElementById('fineModifierBtn');
+            return sel ? parseInt(sel.value, 10) : 0;
+        }
+
+        function readFocusFaderLayers() {
+            const out = { ...DEFAULT_FOCUS_FADER_LAYERS };
+            FOCUS_FADER_LAYERS.forEach(layer => {
+                const sel = document.querySelector(`[data-focus-layer="${layer.id}"]`);
+                if (!sel) return;
+                const v = sel.value;
+                out[layer.id] = v === 'default' ? 'default' : parseInt(v, 10);
+            });
+            return out;
+        }
+
+        function writeFocusLayerTrigger(layerId, trigger) {
+            const sel = document.querySelector(`[data-focus-layer="${layerId}"]`);
+            if (!sel) return;
+            sel.value = trigger === 'default' ? 'default' : String(trigger);
+            sel.dataset.swapPrev = sel.value;
+        }
+
+        function focusLayerTriggerLabel(trigger) {
+            if (trigger === 'default') return 'Default';
+            const opt = BUTTON_OPTIONS.find(o => o.v === trigger);
+            return opt ? opt.l : `Button ${trigger + 1}`;
+        }
+
+        function buildFocusLayerMapStatic() {
+            const root = document.getElementById('focusLayerMap');
+            if (!root) return;
+            root.innerHTML = '';
+            FOCUS_FADER_LAYERS.forEach(layer => {
+                const card = document.createElement('div');
+                card.className = 'binding-card';
+                card.dataset.focusLayerCard = layer.id;
+                card.innerHTML = `
+                    <div class="binding-title">${layer.label}</div>
+                    <p class="hint" style="margin:0 0 8px">${layer.hint}</p>
+                    <div class="field">
+                        <label>Activated by</label>
+                        <select data-focus-layer="${layer.id}"></select>
+                    </div>`;
+                root.appendChild(card);
+            });
+        }
+
+        function fillFocusLayerSelectOptions(sel, selected, layerId) {
+            const fine = getFineModifierButton();
+            sel.innerHTML = '';
+            const def = document.createElement('option');
+            def.value = 'default';
+            def.textContent = 'Default (no button held)';
+            if (selected === 'default') def.selected = true;
+            sel.appendChild(def);
+            BUTTON_OPTIONS.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = String(o.v);
+                opt.textContent = o.l + ' (hold)';
+                if (o.v === fine) {
+                    opt.disabled = true;
+                    opt.textContent += ' — fine modifier';
+                }
+                if (selected === o.v) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
+        function renderFocusLayerMap(layers) {
+            FOCUS_FADER_LAYERS.forEach(layer => {
+                const sel = document.querySelector(`[data-focus-layer="${layer.id}"]`);
+                if (!sel) return;
+                const trigger = layers?.[layer.id] ?? DEFAULT_FOCUS_FADER_LAYERS[layer.id];
+                fillFocusLayerSelectOptions(sel, trigger, layer.id);
+                wireFocusLayerSelect(sel, layer.id);
+            });
+            updateBindingValidationUI();
+        }
+
+        function resolveFocusLayerSwap(changedLayerId, newTrigger, oldTrigger) {
+            const swapped = [];
+            const layers = readFocusFaderLayers();
+            for (const layer of FOCUS_FADER_LAYERS) {
+                if (layer.id === changedLayerId) continue;
+                const t = layers[layer.id];
+                if (t === newTrigger) {
+                    writeFocusLayerTrigger(layer.id, oldTrigger);
+                    swapped.push(layer.label);
+                }
+            }
+            return swapped;
+        }
+
+        function wireFocusLayerSelect(sel, layerId) {
+            if (sel.dataset.focusLayerWire === '1') return;
+            sel.dataset.focusLayerWire = '1';
+            sel.addEventListener('focus', () => {
+                sel.dataset.swapPrev = sel.value;
+            });
+            sel.addEventListener('change', () => {
+                const oldRaw = sel.dataset.swapPrev ?? sel.value;
+                const oldTrigger = oldRaw === 'default' ? 'default' : parseInt(oldRaw, 10);
+                const newRaw = sel.value;
+                const newTrigger = newRaw === 'default' ? 'default' : parseInt(newRaw, 10);
+                const fine = getFineModifierButton();
+                if (newTrigger !== 'default' && newTrigger === fine) {
+                    sel.value = oldRaw;
+                    showToast('That button is used for fine modifier.', 'error');
+                    return;
+                }
+                const swapped = resolveFocusLayerSwap(layerId, newTrigger, oldTrigger);
+                sel.dataset.swapPrev = sel.value;
+                refreshFocusLayerSelectOptions();
+                updateBindingValidationUI();
+                if (swapped.length) {
+                    showToast(
+                        swapped.map(n => `${n} → ${focusLayerTriggerLabel(oldTrigger)}`).join(' · '),
+                        'success',
+                        4500
+                    );
+                }
+            });
+        }
+
+        function refreshFocusLayerSelectOptions() {
+            const layers = readFocusFaderLayers();
+            FOCUS_FADER_LAYERS.forEach(layer => {
+                const sel = document.querySelector(`[data-focus-layer="${layer.id}"]`);
+                if (!sel) return;
+                const prev = sel.dataset.focusLayerWire;
+                const trigger = layers[layer.id];
+                fillFocusLayerSelectOptions(sel, trigger, layer.id);
+                if (prev) sel.dataset.focusLayerWire = prev;
+            });
+        }
+
+        function analyzeFocusLayersScope() {
+            const layers = readFocusFaderLayers();
+            const byTrigger = new Map();
+            const fine = getFineModifierButton();
+            const fineConflictLayers = [];
+            for (const layer of FOCUS_FADER_LAYERS) {
+                const t = layers[layer.id];
+                if (t !== 'default' && t === fine) fineConflictLayers.push(layer.id);
+                const key = t === 'default' ? 'default' : String(t);
+                if (!byTrigger.has(key)) byTrigger.set(key, []);
+                byTrigger.get(key).push(layer.id);
+            }
+            const dupTriggers = new Set();
+            for (const [key, ids] of byTrigger) {
+                if (ids.length > 1) dupTriggers.add(key);
+            }
+            return { layers, byTrigger, dupTriggers, fineConflictLayers };
         }
 
         function renderBindingCard(key, binding) {
@@ -1017,6 +1199,14 @@
                         swapped.push(slotLabel(id));
                     }
                 }
+                const layers = readFocusFaderLayers();
+                for (const layer of FOCUS_FADER_LAYERS) {
+                    const t = layers[layer.id];
+                    if (t !== 'default' && t === newBtn) {
+                        writeFocusLayerTrigger(layer.id, oldBtn);
+                        swapped.push(layer.label);
+                    }
+                }
             } else if (HOLD_BINDING_IDS().includes(changedId)) {
                 if (readButtonSlot('fine') === newBtn) {
                     writeButtonSlot('fine', oldBtn);
@@ -1032,6 +1222,11 @@
             if (fine === null) return { fine, conflicts };
             for (const id of scope.holdIds()) {
                 if (readButtonSlot(id) === fine) conflicts.push(id);
+            }
+            const layers = readFocusFaderLayers();
+            for (const layer of FOCUS_FADER_LAYERS) {
+                const t = layers[layer.id];
+                if (t !== 'default' && t === fine) conflicts.push(layer.id);
             }
             return { fine, conflicts };
         }
@@ -1083,6 +1278,7 @@
                     resolveFineCrossSwap(slotId, newBtn, oldBtn).forEach(n => swapped.add(n));
                 }
                 selectEl.dataset.swapPrev = selectEl.value;
+                if (slotId === 'fine') refreshFocusLayerSelectOptions();
                 updateBindingValidationUI();
                 if (swapped.size) {
                     showToast(
@@ -1200,17 +1396,62 @@
                         if (fineCard) fineCard.classList.toggle('binding-conflict', fineConflict);
                         if (fineSel) fineSel.classList.toggle('input-conflict', fineConflict);
                         for (const id of conflicts) {
-                            const card = slotCardEl(id);
-                            const sel = buttonSelectEl(id);
-                            if (card) card.classList.toggle('binding-conflict', true);
-                            if (sel) sel.classList.toggle('input-conflict', true);
+                            const layer = FOCUS_FADER_LAYERS.find(l => l.id === id);
+                            if (layer) {
+                                const card = document.querySelector(`[data-focus-layer-card="${id}"]`);
+                                const sel = document.querySelector(`[data-focus-layer="${id}"]`);
+                                if (card) card.classList.toggle('binding-conflict', true);
+                                if (sel) sel.classList.toggle('input-conflict', true);
+                            } else {
+                                const card = slotCardEl(id);
+                                const sel = buttonSelectEl(id);
+                                if (card) card.classList.toggle('binding-conflict', true);
+                                if (sel) sel.classList.toggle('input-conflict', true);
+                            }
                         }
                     }
                     if (warn) {
                         if (conflicts.length) {
-                            const names = conflicts.map(slotLabel);
+                            const names = conflicts.map(id => {
+                                const layer = FOCUS_FADER_LAYERS.find(l => l.id === id);
+                                return layer ? layer.label : slotLabel(id);
+                            });
                             warn.textContent =
                                 `${scope.label}: button ${fine + 1} is used by fine modifier and ${names.join(', ')}.`;
+                            warn.classList.add('show');
+                        } else {
+                            warn.classList.remove('show');
+                        }
+                    }
+                } else if (scope.kind === 'focus_layers') {
+                    const { dupTriggers, fineConflictLayers, byTrigger, layers } =
+                        analyzeFocusLayersScope();
+                    for (const layer of FOCUS_FADER_LAYERS) {
+                        const t = layers[layer.id];
+                        const key = t === 'default' ? 'default' : String(t);
+                        const conflict =
+                            fineConflictLayers.includes(layer.id)
+                            || (byTrigger.get(key)?.length > 1);
+                        const card = document.querySelector(`[data-focus-layer-card="${layer.id}"]`);
+                        const sel = document.querySelector(`[data-focus-layer="${layer.id}"]`);
+                        if (card) card.classList.toggle('binding-conflict', conflict);
+                        if (sel) sel.classList.toggle('input-conflict', conflict);
+                    }
+                    if (warn) {
+                        const parts = [];
+                        for (const key of dupTriggers) {
+                            const names = (byTrigger.get(key) || []).map(
+                                id => FOCUS_FADER_LAYERS.find(l => l.id === id)?.label ?? id
+                            );
+                            const label = key === 'default' ? 'Default' : `Button ${parseInt(key, 10) + 1}`;
+                            parts.push(`${label}: ${names.join(', ')}`);
+                        }
+                        for (const id of fineConflictLayers) {
+                            const layer = FOCUS_FADER_LAYERS.find(l => l.id === id);
+                            parts.push(`${layer?.label ?? id}: uses fine modifier button`);
+                        }
+                        if (parts.length) {
+                            warn.textContent = `${scope.label}: ${parts.join(' · ')}.`;
                             warn.classList.add('show');
                         } else {
                             warn.classList.remove('show');
@@ -1276,6 +1517,9 @@
             for (const scope of CONFLICT_SCOPES) {
                 if (scope.kind === 'fine_cross') {
                     if (analyzeFineCross(scope).conflicts.length) return false;
+                } else if (scope.kind === 'focus_layers') {
+                    const { dupTriggers, fineConflictLayers } = analyzeFocusLayersScope();
+                    if (dupTriggers.size || fineConflictLayers.length) return false;
                 } else if (scope.kind === 'button') {
                     if (analyzeButtonScope(scope).dupButtons.size) return false;
                 } else {
@@ -1290,6 +1534,7 @@
             settings = JSON.parse(JSON.stringify(data));
             migrateLegacyModeKeys(settings);
             migrateLegacyOverlayBindings(settings);
+            migrateLegacyFocusLayers(settings);
             if (!settings.USER_CC_GRID) settings.USER_CC_GRID = defaultUserCcGrid();
 
             document.getElementById('midiChannel').value = settings.MIDI_CHANNEL ?? 1;
@@ -1321,6 +1566,7 @@
             BINDING_META.forEach(m => {
                 renderBindingCard(m.key, (settings.BINDINGS || {})[m.key]);
             });
+            renderFocusLayerMap(settings.FOCUS_FADER_LAYERS);
             wireAllBindingValidation();
             updateBindingValidationUI();
 
@@ -1336,6 +1582,7 @@
             out.FINE_SCALE = parseFloat(document.getElementById('fineScale').value);
             out.DELTA_SCALE = parseFloat(document.getElementById('deltaScale').value);
             out.USER_BANK_SWITCH_PAGE = document.getElementById('userBankSwitch').value;
+            out.FOCUS_FADER_LAYERS = readFocusFaderLayers();
             out.PROTOCOL_VERSION = out.PROTOCOL_VERSION ?? 1;
 
             Object.assign(out, protocolFaderCcObject());
@@ -1355,6 +1602,9 @@
                     b.tap = parseInt(extra[1].value, 10);
                 }
                 out.BINDINGS[m.key] = b;
+            });
+            ['focus_overlay_1', 'focus_overlay_2', 'focus_overlay_3'].forEach(k => {
+                delete out.BINDINGS[k];
             });
 
             document.querySelectorAll('#userCcGrid input[data-ug-b]').forEach(inp => {

@@ -344,6 +344,8 @@ class LumaFaderController:
         return "overlay_3" in self.gestures.active_overlays
 
     def _fader_cc_bank(self):
+        if self.visible_state.mode_id == cfg.MODE_FOCUS:
+            return settings.focus_layer_cc_bank(self.gestures.active_focus_layer)
         if self._overlay_remotes_5_8_active():
             return "remotes_5_8"
         if self._overlay_sends_active():
