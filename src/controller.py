@@ -31,7 +31,6 @@ _FOCUS_NAV_ACTIONS = frozenset(
         "nav_prev_track",
         "nav_next_device",
         "nav_prev_device",
-        "scope_toggle",
     }
 )
 _FOUR_TRACK_NAV_ACTIONS = frozenset(

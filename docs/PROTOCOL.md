@@ -2,7 +2,7 @@
 
 All controller → host traffic is **USB MIDI only** (one configurable channel, default 1).
 
-Every CC/note listed below is independently configurable in `settings.json`.
+**Fader CC banks** and **gesture bindings** are configurable in `settings.json`. **ACTION_CC** numbers (40–47, 50–53, 60–62) are fixed to match the Bitwig extension and are always reset to defaults on load.
 
 ## Controller → Bitwig
 

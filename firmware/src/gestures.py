@@ -9,7 +9,6 @@ class GestureEngine:
         "workspace_focus": (cfg.GESTURE_WORKSPACE, cfg.WORKSPACE_FOCUS),
         "workspace_four_track": (cfg.GESTURE_WORKSPACE, cfg.WORKSPACE_FOUR_TRACK),
         "workspace_user": (cfg.GESTURE_WORKSPACE, cfg.WORKSPACE_USER),
-        "scope_toggle": (cfg.GESTURE_SCOPE_TOGGLE, 0),
         "nav_next_track": (cfg.GESTURE_NAV_NEXT_TRACK, 0),
         "nav_prev_track": (cfg.GESTURE_NAV_PREV_TRACK, 0),
         "nav_next_device": (cfg.GESTURE_NAV_NEXT_DEVICE, 0),

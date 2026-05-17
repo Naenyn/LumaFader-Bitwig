@@ -132,12 +132,25 @@
         input:focus, select:focus { outline: none; border-color: #2a4a7a; }
         .cc-row {
             display: grid;
-            grid-template-columns: 48px 1fr 56px;
+            grid-template-columns: 48px 1fr 76px;
             gap: 8px;
             align-items: end;
             margin-bottom: 8px;
         }
-        .cc-row span.fader-label { font-size: 11px; color: #5a6a8a; padding-bottom: 6px; }
+        .cc-row span.fader-label {
+            font-size: 11px;
+            color: #5a6a8a;
+            padding-bottom: 6px;
+            text-align: right;
+            padding-right: 4px;
+        }
+        button.learn {
+            padding: 6px 8px;
+            font-size: 10px;
+            letter-spacing: 0.02em;
+            min-width: 76px;
+            white-space: nowrap;
+        }
         .binding-card {
             border: 1px solid #d0d8e8;
             padding: 10px 12px;
@@ -218,6 +231,40 @@
         .user-grid-tabs button { padding: 4px 10px; font-size: 10px; }
         .user-grid-tabs button.active { background: #2a4a7a; color: #fff; }
         .hint { font-size: 10px; color: #7a8aaa; margin-top: 6px; font-style: italic; }
+        .protocol-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .protocol-table th,
+        .protocol-table td {
+            border: 1px solid #d0d8e8;
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .protocol-table th {
+            background: #f0f2f8;
+            color: #3a5a8a;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .protocol-table td.cc-num {
+            width: 48px;
+            text-align: right;
+            font-weight: 600;
+            color: #2a4a7a;
+        }
+        .protocol-warn {
+            margin-top: 8px;
+            padding: 8px 10px;
+            border: 1px solid #c05030;
+            color: #8a4020;
+            font-size: 11px;
+            display: none;
+        }
+        .protocol-warn.show { display: block; }
     </style>
 </head>
 <body>
@@ -280,14 +327,18 @@
 
             <div class="section" id="faderCcSection">
                 <h2>Fader CC numbers</h2>
-                <p class="hint">Absolute CC per fader (A–D). Learn assigns from incoming MIDI while connected.</p>
+                <p class="hint">CC numbers the hardware faders <strong>send</strong> to your DAW (absolute mode). <strong>Learn</strong> fills a field: click Learn, then send one MIDI CC <em>to</em> the LumaFader USB port (e.g. move a control in Bitwig that targets this device). The editor copies that CC# — it does not map another controller’s fader to the LumaFader physically.</p>
                 <div id="faderCcBanks"></div>
             </div>
 
             <div class="section">
-                <h2>Action CC (gesture → host)</h2>
-                <p class="hint">Pulse CCs sent to Bitwig or other hosts. Meaning is fixed in the extension; numbers are configurable.</p>
-                <div class="grid-2" id="actionCcFields"></div>
+                <h2>Bitwig action CCs (fixed protocol)</h2>
+                <p class="hint">Focus and Four-Track modes talk to the <strong>LumaFader Bitwig extension</strong> only. When you perform a gesture, firmware sends a short CC pulse on these numbers; the extension listens for the same hardcoded CCs. You configure <em>which button gesture</em> triggers each action below — not the CC numbers.</p>
+                <table class="protocol-table" id="actionCcTable">
+                    <thead><tr><th>CC</th><th>Action</th><th>Extension behavior</th></tr></thead>
+                    <tbody id="actionCcTableBody"></tbody>
+                </table>
+                <p class="protocol-warn" id="actionCcMismatch"></p>
             </div>
 
             <div class="section">
@@ -343,30 +394,34 @@
             { key: 'FADER_CC_UTILITY', title: 'Overlay 3 — utility (hold btn 2)', learn: 3 },
         ];
 
-        const ACTION_CC_META = [
-            { key: 'workspace_focus', label: 'Workspace: Focus' },
-            { key: 'workspace_four_track', label: 'Workspace: Four-Track' },
-            { key: 'workspace_user', label: 'Workspace: User' },
-            { key: 'scope_toggle', label: 'Scope toggle' },
-            { key: 'nav_next_track', label: 'Nav: next track' },
-            { key: 'nav_prev_track', label: 'Nav: prev track' },
-            { key: 'nav_next_device', label: 'Nav: next device' },
-            { key: 'nav_prev_device', label: 'Nav: prev device' },
-            { key: 'nav_next_track_page', label: 'Nav: next track page' },
-            { key: 'nav_prev_track_page', label: 'Nav: prev track page' },
-            { key: 'nav_next_send', label: 'Nav: next send' },
-            { key: 'nav_prev_send', label: 'Nav: prev send' },
-            { key: 'overlay_1', label: 'Overlay 1 hold' },
-            { key: 'overlay_2', label: 'Overlay 2 hold' },
-            { key: 'overlay_3', label: 'Overlay 3 hold' },
-            { key: 'fine_modifier', label: 'Fine modifier (legacy CC)' },
+        const PROTOCOL_ACTION_CC = [
+            { key: 'nav_next_track', cc: 40, behavior: 'Focus / Four-Track: next track (chord pulse)' },
+            { key: 'nav_prev_track', cc: 41, behavior: 'Focus / Four-Track: previous track' },
+            { key: 'nav_next_device', cc: 42, behavior: 'Focus: next device on chain' },
+            { key: 'nav_prev_device', cc: 43, behavior: 'Focus: previous device' },
+            { key: 'nav_next_track_page', cc: 44, behavior: 'Four-Track: next track page' },
+            { key: 'nav_prev_track_page', cc: 45, behavior: 'Four-Track: previous track page' },
+            { key: 'nav_next_send', cc: 46, behavior: 'Four-Track: next send slot' },
+            { key: 'nav_prev_send', cc: 47, behavior: 'Four-Track: previous send slot' },
+            { key: 'overlay_1', cc: 50, behavior: '127 while overlay 1 held, 0 on release — LED layer (remotes 5–8)' },
+            { key: 'overlay_2', cc: 51, behavior: '127 while overlay 2 held — sends overlay' },
+            { key: 'overlay_3', cc: 52, behavior: '127 while overlay 3 held — utility overlay' },
+            { key: 'fine_modifier', cc: 53, behavior: '127 while fine held, 0 on release — takeover hint' },
+            { key: 'workspace_focus', cc: 60, behavior: 'Double-tap pulse → Focus workspace (mode 1)' },
+            { key: 'workspace_four_track', cc: 61, behavior: 'Double-tap pulse → Four-Track workspace (mode 2)' },
+            { key: 'workspace_user', cc: 62, behavior: 'Double-tap pulse → User workspace (mode 3); extension sync only' },
         ];
+
+        function protocolActionCcObject() {
+            const o = {};
+            PROTOCOL_ACTION_CC.forEach(r => { o[r.key] = r.cc; });
+            return o;
+        }
 
         const BINDING_META = [
             { key: 'workspace_focus', label: 'Workspace → Focus', types: ['double_tap'] },
             { key: 'workspace_four_track', label: 'Workspace → Four-Track', types: ['double_tap'] },
             { key: 'workspace_user', label: 'Workspace → User', types: ['double_tap'] },
-            { key: 'scope_toggle', label: 'Scope toggle', types: ['double_tap'] },
             { key: 'nav_next_track', label: 'Nav next track', types: ['chord'] },
             { key: 'nav_prev_track', label: 'Nav prev track', types: ['chord'] },
             { key: 'nav_next_device', label: 'Nav next device', types: ['chord'] },
@@ -466,13 +521,11 @@
                 faderBanks.appendChild(block);
             });
 
-            const actionFields = document.getElementById('actionCcFields');
-            ACTION_CC_META.forEach(m => {
-                const div = document.createElement('div');
-                div.className = 'field';
-                div.innerHTML = `<label for="action_${m.key}">${m.label}</label>
-                    <input type="number" min="0" max="127" id="action_${m.key}" data-action-key="${m.key}">`;
-                actionFields.appendChild(div);
+            const tbody = document.getElementById('actionCcTableBody');
+            PROTOCOL_ACTION_CC.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="cc-num">${row.cc}</td><td>${row.key}</td><td>${row.behavior}</td>`;
+                tbody.appendChild(tr);
             });
 
             const bindingRoot = document.getElementById('bindingFields');
@@ -633,10 +686,22 @@
                 }
             });
 
-            ACTION_CC_META.forEach(m => {
-                const el = document.getElementById('action_' + m.key);
-                if (el && settings.ACTION_CC) el.value = settings.ACTION_CC[m.key] ?? 0;
-            });
+            const expected = protocolActionCcObject();
+            const warn = document.getElementById('actionCcMismatch');
+            let mismatch = false;
+            if (settings.ACTION_CC) {
+                PROTOCOL_ACTION_CC.forEach(r => {
+                    if (settings.ACTION_CC[r.key] !== r.cc) mismatch = true;
+                });
+            }
+            if (mismatch) {
+                warn.textContent =
+                    'Device settings.json has non-standard ACTION_CC values; saving will restore the fixed protocol table above.';
+                warn.classList.add('show');
+            } else {
+                warn.classList.remove('show');
+            }
+            settings.ACTION_CC = expected;
 
             BINDING_META.forEach(m => {
                 renderBindingCard(m.key, (settings.BINDINGS || {})[m.key]);
@@ -663,10 +728,7 @@
                 }
             });
 
-            out.ACTION_CC = out.ACTION_CC || {};
-            ACTION_CC_META.forEach(m => {
-                out.ACTION_CC[m.key] = parseInt(document.getElementById('action_' + m.key).value, 10);
-            });
+            out.ACTION_CC = protocolActionCcObject();
 
             out.BINDINGS = out.BINDINGS || {};
             BINDING_META.forEach(m => {
@@ -734,7 +796,7 @@
             learnSlot = slot;
             btn.classList.add('active');
             await sendCommand('START_LEARN|' + slot);
-            showToast('Twist a control in your DAW (incoming CC)…', 'success', 2000);
+            showToast('Send a MIDI CC to LumaFader (e.g. move a control in Bitwig)…', 'success', 3500);
         }
 
         function applyLearnedCc(_sliderIdx, cc, channel) {

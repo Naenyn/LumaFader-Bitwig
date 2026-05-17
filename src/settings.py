@@ -22,7 +22,6 @@ ACTION_CC_KEYS = (
     "workspace_focus",
     "workspace_four_track",
     "workspace_user",
-    "scope_toggle",
     "nav_next_track",
     "nav_prev_track",
     "nav_next_device",
@@ -42,7 +41,6 @@ DEFAULT_ACTION_CC = {
     "workspace_focus": 60,
     "workspace_four_track": 61,
     "workspace_user": 62,
-    "scope_toggle": 63,
     "nav_next_track": 40,
     "nav_prev_track": 41,
     "nav_next_device": 42,
@@ -74,7 +72,6 @@ class Settings:
             "workspace_focus": {"type": "double_tap", "button": cfg.BUTTON_4},
             "workspace_four_track": {"type": "double_tap", "button": cfg.BUTTON_3},
             "workspace_user": {"type": "double_tap", "button": cfg.BUTTON_2},
-            "scope_toggle": {"type": "double_tap", "button": cfg.BUTTON_4},
             "nav_next_track": {"type": "chord", "hold": cfg.BUTTON_4, "tap": cfg.BUTTON_1},
             "nav_prev_track": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
             "nav_next_device": {"type": "chord", "hold": cfg.BUTTON_3, "tap": cfg.BUTTON_2},
@@ -147,6 +144,8 @@ class Settings:
                 self.settings[key] = value
         if "USER_CC_GRID" not in self.settings:
             self.settings["USER_CC_GRID"] = _default_user_cc_grid()
+        # Fixed contract with LumaFaderExtension.java — not user-configurable.
+        self.settings["ACTION_CC"] = dict(DEFAULT_ACTION_CC)
 
     def get_midi_channel(self):
         ch = int(self.settings.get("MIDI_CHANNEL", 1))
