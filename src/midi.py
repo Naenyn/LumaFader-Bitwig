@@ -9,6 +9,7 @@ try:
 except ImportError:
     SystemExclusive = None
 
+import constants as cfg
 import sysex_protocol
 
 # Visible-state SysEx is 42 bytes (F0 … 7D 01 01 10 + 36 payload + F7).
@@ -23,6 +24,7 @@ class MidiManager:
         self.visible_state = visible_state
         self._sysex_buffer = []
         self._in_sysex = False
+        self._last_cc_values_sent = {}
 
         self.midi = adafruit_midi.MIDI(
             midi_in=usb_midi.ports[0],
@@ -40,6 +42,9 @@ class MidiManager:
             self._handle_incoming(msg)
 
     def _handle_incoming(self, msg):
+        if self.visible_state.workspace_id == cfg.WORKSPACE_USER:
+            return
+
         if SystemExclusive is not None and isinstance(msg, SystemExclusive):
             # adafruit_midi splits F0 7D … F7 into manufacturer_id=[7D] and data=[01 01 10 …].
             # parse_sysex expects the full body starting with 7D.
@@ -98,8 +103,13 @@ class MidiManager:
         self.midi.send(msg, channel=channel)
 
     def send_cc_value(self, cc_number, value, channel):
-        msg = ControlChange(cc_number, max(0, min(127, value)), channel=channel)
+        value = max(0, min(127, value))
+        msg = ControlChange(cc_number, value, channel=channel)
         self.midi.send(msg, channel=channel)
+        self._last_cc_values_sent[(cc_number, channel)] = value
+
+    def get_last_cc_sent(self, cc_number, channel):
+        return self._last_cc_values_sent.get((cc_number, channel), 0)
 
     def send_action_pulse(self, cc_number, channel, velocity=127):
         """Momentary action: peak then release (for Bitwig note-style mapping)."""

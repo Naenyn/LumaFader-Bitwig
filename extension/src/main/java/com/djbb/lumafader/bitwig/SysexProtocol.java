@@ -24,6 +24,8 @@ final class SysexProtocol
    static final int FADER_MODE_STANDBY = 3;
    /** Pan: firmware renders green (CC &lt; center) / red (CC &gt; center) from strip center. */
    static final int FADER_MODE_PAN = 4;
+   /** Last-touched utility fader: rainbow animation runs on the controller. */
+   static final int FADER_MODE_RAINBOW = 5;
 
    static final int PAN_CENTER_CC = 64;
    /** Ignore pan MIDI when both hardware and host are near center (re-center latch). */

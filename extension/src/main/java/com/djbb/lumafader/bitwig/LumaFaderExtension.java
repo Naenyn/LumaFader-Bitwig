@@ -84,10 +84,12 @@ public class LumaFaderExtension extends ControllerExtension
    private static final int DISPLAY_REMOTES_5_8 = 1;
    private static final int DISPLAY_SENDS = 2;
    private static final int DISPLAY_UTILITY = 3;
+   /** Four-Track default layer and after overlay release. */
+   private static final int DISPLAY_FOUR_SENDS = 4;
    /** Four-Track overlay 1: volume (reuses overlay_1 / CC 24–27 bank). */
-   private static final int DISPLAY_FOUR_VOLUME = 1;
+   private static final int DISPLAY_FOUR_VOLUME = 5;
    /** Four-Track overlay 2: pan (reuses overlay_2 / CC 28–31 bank). */
-   private static final int DISPLAY_FOUR_PAN = 2;
+   private static final int DISPLAY_FOUR_PAN = 6;
 
    private ControllerHost host;
    private int workspaceId = SysexProtocol.WORKSPACE_FOCUS;
@@ -126,8 +128,6 @@ public class LumaFaderExtension extends ControllerExtension
    private long ledUpdateScheduledAt;
    private long lastFlushLedMs;
    private static final int FLUSH_LED_INTERVAL_MS = 100;
-   private static final int UTILITY_RAINBOW_ANIMATION_MS = 50;
-   private boolean utilityRainbowAnimationRunning;
    private boolean overlay1Held;
    private boolean overlay2Held;
    private boolean overlay3Held;
@@ -467,6 +467,11 @@ public class LumaFaderExtension extends ControllerExtension
          (BooleanValueChangedCallback) exists -> scheduleVisibleStateUpdate());
    }
 
+   private boolean isUserWorkspace()
+   {
+      return workspaceId == SysexProtocol.WORKSPACE_USER;
+   }
+
    private void onMidi(final ShortMidiMessage msg)
    {
       if (!msg.isControlChange())
@@ -475,6 +480,16 @@ public class LumaFaderExtension extends ControllerExtension
       }
 
       final int cc = msg.getData1();
+
+      if (isUserWorkspace())
+      {
+         if (handleWorkspaceActionCc(cc, msg.getData2()))
+         {
+            return;
+         }
+         return;
+      }
+
       if (cc == FINE_MODIFIER_ACTION_CC)
       {
          fineModifierHeld = msg.getData2() >= 64;
@@ -581,15 +596,15 @@ public class LumaFaderExtension extends ControllerExtension
       {
          if (overlayNumber == 1)
          {
-            setLedDisplayKind(held ? DISPLAY_FOUR_VOLUME : DISPLAY_SENDS);
+            setLedDisplayKind(held ? DISPLAY_FOUR_VOLUME : DISPLAY_FOUR_SENDS);
          }
          else if (overlayNumber == 2)
          {
-            setLedDisplayKind(held ? DISPLAY_FOUR_PAN : DISPLAY_SENDS);
+            setLedDisplayKind(held ? DISPLAY_FOUR_PAN : DISPLAY_FOUR_SENDS);
          }
          else
          {
-            setLedDisplayKind(DISPLAY_SENDS);
+            setLedDisplayKind(DISPLAY_FOUR_SENDS);
          }
       }
       else if (overlayNumber == 1)
@@ -644,12 +659,12 @@ public class LumaFaderExtension extends ControllerExtension
    {
       if (workspaceId == newWorkspaceId)
       {
+         scheduleVisibleStateUpdate();
          return;
       }
 
       final boolean leavingFourTrack = isFourTrackWorkspace();
       workspaceId = newWorkspaceId;
-      utilityRainbowAnimationRunning = false;
       overlay1Held = false;
       overlay2Held = false;
       overlay3Held = false;
@@ -661,20 +676,19 @@ public class LumaFaderExtension extends ControllerExtension
 
       if (isFourTrackWorkspace())
       {
-         ledDisplayKind = DISPLAY_SENDS;
+         ledDisplayKind = DISPLAY_FOUR_SENDS;
          fourTrackViewport.initPageAroundCursor(
             flatTrackBank, cursorTrack, MAIN_TRACK_BANK_SIZE);
          enableFourTrackWindowIndication();
          host.scheduleTask(this::enableFourTrackWindowIndication, DEVICE_SELECT_DELAY_MS);
       }
-
-      if (isFocusWorkspace())
+      else if (isFocusWorkspace())
       {
          ledDisplayKind = DISPLAY_REMOTES;
          editingTrackRemotes = false;
          host.scheduleTask(this::scheduleSelectFirstDeviceOnCursorTrack, DEVICE_SELECT_DELAY_MS);
       }
-      else
+      else if (isUserWorkspace())
       {
          ledDisplayKind = DISPLAY_REMOTES;
       }
@@ -812,7 +826,7 @@ public class LumaFaderExtension extends ControllerExtension
          if (cc == FADER_CCS_REMOTES_1_4[i])
          {
             applyFourTrackSendFaderValue(i, incomingMidi7);
-            setLedDisplayKind(DISPLAY_SENDS);
+            setLedDisplayKind(DISPLAY_FOUR_SENDS);
             return;
          }
       }
@@ -1578,7 +1592,6 @@ public class LumaFaderExtension extends ControllerExtension
       {
          ledDisplayKind = kind;
          armFaderTakeoverForCurrentLayer();
-         updateUtilityRainbowAnimation(kind == DISPLAY_UTILITY);
          scheduleVisibleStateUpdate();
       }
    }
@@ -1683,34 +1696,6 @@ public class LumaFaderExtension extends ControllerExtension
          return 0;
       }
       return VisibleStateSysex.parameterToMidi7(send.value().get());
-   }
-
-   private void updateUtilityRainbowAnimation(final boolean enable)
-   {
-      if (enable)
-      {
-         if (!utilityRainbowAnimationRunning)
-         {
-            utilityRainbowAnimationRunning = true;
-            host.scheduleTask(this::tickUtilityRainbowAnimation, UTILITY_RAINBOW_ANIMATION_MS);
-         }
-      }
-      else
-      {
-         utilityRainbowAnimationRunning = false;
-      }
-   }
-
-   private void tickUtilityRainbowAnimation()
-   {
-      if (!utilityRainbowAnimationRunning || ledDisplayKind != DISPLAY_UTILITY)
-      {
-         utilityRainbowAnimationRunning = false;
-         return;
-      }
-
-      sendVisibleState();
-      host.scheduleTask(this::tickUtilityRainbowAnimation, UTILITY_RAINBOW_ANIMATION_MS);
    }
 
    private void scheduleVisibleStateUpdate()
@@ -1861,7 +1846,7 @@ public class LumaFaderExtension extends ControllerExtension
             continue;
          }
 
-         final int[] rgb = midiRgbFromColorValue(track.color());
+         final int[] rgb = midiRgbForSendLed(send, track);
          faderColors[i][0] = rgb[0];
          faderColors[i][1] = rgb[1];
          faderColors[i][2] = rgb[2];
@@ -1956,22 +1941,19 @@ public class LumaFaderExtension extends ControllerExtension
 
          if (i == UTILITY_LAST_TOUCHED)
          {
-            final int[] rgb = BitwigRemoteColors.midiRgbRainbowCycle(System.currentTimeMillis());
-            faderColors[i][0] = rgb[0];
-            faderColors[i][1] = rgb[1];
-            faderColors[i][2] = rgb[2];
-
+            faderColors[i][0] = 0;
+            faderColors[i][1] = 0;
+            faderColors[i][2] = 0;
+            faderModes[i] = SysexProtocol.FADER_MODE_RAINBOW;
             if (!isLastTouchedActive())
             {
-               faderModes[i] = SysexProtocol.FADER_MODE_STANDBY;
                faderValues[i] = 0;
-               continue;
             }
-
-            final String name = lastTouchedParameter.name().get();
-            faderModes[i] = VisibleStateSysex.faderModeForParameter(true, true, name);
-            faderValues[i] =
-               VisibleStateSysex.parameterToMidi7(lastTouchedParameter.value().get());
+            else
+            {
+               faderValues[i] =
+                  VisibleStateSysex.parameterToMidi7(lastTouchedParameter.value().get());
+            }
             continue;
          }
 
@@ -2023,7 +2005,7 @@ public class LumaFaderExtension extends ControllerExtension
             continue;
          }
 
-         final int[] rgb = midiRgbFromSendColor(send.sendChannelColor());
+         final int[] rgb = midiRgbForSendLed(send, cursorTrack);
          faderColors[i][0] = rgb[0];
          faderColors[i][1] = rgb[1];
          faderColors[i][2] = rgb[2];
@@ -2085,6 +2067,20 @@ public class LumaFaderExtension extends ControllerExtension
       }
    }
 
+   private static int[] midiRgbForSendLed(final Send send, final Track track)
+   {
+      final int[] fromSend = midiRgbFromSendColor(send.sendChannelColor());
+      if (fromSend[0] > 0 || fromSend[1] > 0 || fromSend[2] > 0)
+      {
+         return fromSend;
+      }
+      if (track != null && track.exists().get())
+      {
+         return midiRgbFromColorValue(track.color());
+      }
+      return fromSend;
+   }
+
    private static int[] midiRgbFromSendColor(final SettableColorValue color)
    {
       return midiRgbFromColorValue(color);
@@ -2102,7 +2098,6 @@ public class LumaFaderExtension extends ControllerExtension
    @Override
    public void exit()
    {
-      utilityRainbowAnimationRunning = false;
       setFourTrackWindowIndication(false);
       ((ControllerHost) getHost()).println("LumaFader exited");
    }

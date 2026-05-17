@@ -72,7 +72,7 @@ Framing: standard `F0` … `F7` (42 bytes total). The extension sends full frami
 | 23 + 3×i | button[i]: R, G, B |
 | 35 | nav_reject_edge (0–4) |
 
-Fader modes: `0` unipolar, `1` bipolar (symmetric), `2` dim (ignore motion), `3` standby (dim LED, motion allowed), `4` pan (green below / red above center from host value). Pan re-center deadzone (±4 CC at 64) is applied in the Bitwig extension when both host and incoming MIDI are near center—not in LED rendering.
+Fader modes: `0` unipolar, `1` bipolar (symmetric), `2` dim (ignore motion), `3` standby (dim LED, motion allowed), `4` pan (green below / red above center from host value), `5` rainbow (firmware animates last-touched utility fader; host sends level only). Pan re-center deadzone (±4 CC at 64) is applied in the Bitwig extension when both host and incoming MIDI are near center—not in LED rendering.
 
 Fader/button RGB bytes are **0–127 per channel**; firmware scales to 0–255 for NeoPixels.
 

@@ -4,6 +4,7 @@ import constants as cfg
 from gestures import GestureEngine
 from inputs import BankButton, MidiSlider
 from settings import settings
+from user_mode import UserMode
 
 _NAV_ACTIONS = frozenset(
     {
@@ -41,6 +42,11 @@ _FOUR_TRACK_NAV_ACTIONS = frozenset(
         "nav_prev_send",
     }
 )
+_WORKSPACE_ACTION_TO_ID = {
+    "workspace_focus": cfg.WORKSPACE_FOCUS,
+    "workspace_four_track": cfg.WORKSPACE_FOUR_TRACK,
+    "workspace_user": cfg.WORKSPACE_USER,
+}
 
 
 class LumaFaderController:
@@ -52,8 +58,10 @@ class LumaFaderController:
         self.sliders = [MidiSlider(p, i) for i, p in enumerate(slider_pins)]
         self.buttons = [BankButton(p) for p in button_pins]
         self.gestures = GestureEngine(self.buttons)
+        self.user_mode = UserMode(self.sliders, self.buttons)
         self.channel = settings.get_midi_channel()
         self.config_mode = False
+        self._last_workspace = visible_state.workspace_id
         self._overlay_remotes_5_8 = False
         self._overlay_sends = False
         self._overlay_utility = False
@@ -87,10 +95,69 @@ class LumaFaderController:
 
     def process(self):
         pending_actions = self.gestures.update()
+        self._apply_workspace_switches(pending_actions)
+
+        workspace_id = self.visible_state.workspace_id
+        if workspace_id != self._last_workspace:
+            if workspace_id == cfg.WORKSPACE_USER:
+                self.user_mode.reset_on_workspace_enter()
+            self._last_workspace = workspace_id
+
+        non_workspace = [
+            name for name in pending_actions if name not in _WORKSPACE_SWITCH_ACTIONS
+        ]
+
+        if workspace_id == cfg.WORKSPACE_USER:
+            self._process_user_workspace(non_workspace)
+            return
+
         self._update_fine_state()
-        self._send_gesture_actions(pending_actions)
+        self._send_gesture_actions(non_workspace)
         self._update_overlay_state()
         self._send_fader_positions()
+
+    def _apply_workspace_switches(self, actions):
+        """Firmware owns workspace/mode; Bitwig SysEx is optional sync only."""
+        pressed_count = sum(1 for button in self.buttons if button.pressed)
+        for name in actions:
+            if name not in _WORKSPACE_SWITCH_ACTIONS:
+                continue
+            if pressed_count > 1:
+                continue
+            new_id = _WORKSPACE_ACTION_TO_ID.get(name)
+            if new_id is None:
+                continue
+            if new_id != self.visible_state.workspace_id:
+                self.visible_state.workspace_id = new_id
+                self.visible_state.overlay_id = 0
+                self._release_overlay_ccs()
+            self.midi.send_action_pulse(settings.get_action_cc(name), self.channel)
+
+    def _process_user_workspace(self, pending_actions):
+        user_actions = []
+        other_actions = []
+        for name in pending_actions:
+            if self.user_mode.is_user_nav_action(name):
+                user_actions.append(name)
+            else:
+                other_actions.append(name)
+
+        self.user_mode.handle_actions(user_actions)
+        self.user_mode.update_view_from_buttons()
+
+        self._update_fine_state_user()
+        self._send_gesture_actions(other_actions)
+        self.user_mode.process_faders(self.midi, self._fine_active())
+
+    def _update_fine_state_user(self):
+        fine = self._fine_active()
+        if fine == self._fine_active_last:
+            return
+        self._fine_active_last = fine
+        if fine:
+            self.user_mode.on_fine_press()
+        else:
+            self.user_mode.on_fine_release()
 
     def _send_gesture_actions(self, actions):
         """Momentary ACTION_CC pulses for chords / double-taps (not overlays)."""
@@ -109,15 +176,14 @@ class LumaFaderController:
         if any(name in _NAV_ACTIONS for name in actions):
             self._arm_nav_pickup()
 
-        if any(name in _WORKSPACE_SWITCH_ACTIONS for name in actions):
-            self._release_overlay_ccs()
-
         for name in actions:
             if settings.is_overlay_action(name):
                 continue
-            if name in _WORKSPACE_SWITCH_ACTIONS and pressed_count > 1:
+            if name in _WORKSPACE_SWITCH_ACTIONS:
                 continue
             if name in _NAV_ACTIONS and name not in allowed_nav:
+                continue
+            if self.user_mode.is_user_nav_action(name):
                 continue
             self.midi.send_action_pulse(settings.get_action_cc(name), self.channel)
 
@@ -215,7 +281,6 @@ class LumaFaderController:
         fine = self._fine_active()
         if fine == self._fine_active_last:
             return
-        # Tell Bitwig before any fader CC on this edge (takeover arm on release).
         self.midi.send_cc_held(
             settings.get_action_cc("fine_modifier"),
             fine,

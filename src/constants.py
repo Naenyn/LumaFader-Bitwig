@@ -6,6 +6,19 @@ OVERLAY_HOLD_DELAY_S = 0.08
 CHORD_TAP_MAX_S = 0.25
 LONG_HOLD_THRESH_S = 0.5
 NAV_REJECT_FLASH_S = 0.15
+USER_NAV_FLASH_S = 0.2
+
+# Pickup deadband (Cherry firmware).
+CC_THRESHOLD = 2
+
+# User workspace: bank base colors (banks 1–4). Pages use PAGE_SHADE on top.
+USER_BANK_COLORS = [
+    (200, 90, 40),   # bank 1
+    (40, 160, 90),   # bank 2
+    (50, 110, 200),  # bank 3
+    (170, 70, 200),  # bank 4
+]
+USER_PAGE_SHADES = (1.0, 0.78, 0.58, 0.42)
 
 # Fader smoothing (physical ADC)
 SLOW_SMOOTHING_FACTOR = 0.2
@@ -51,6 +64,24 @@ FADER_MODE_DIM = 2
 FADER_MODE_STANDBY = 3
 # Pan: one-sided fill from center; green below center CC, red above; see led_renderer.
 FADER_MODE_PAN = 4
+# Last-touched utility fader: firmware animates (extension sends level only).
+FADER_MODE_RAINBOW = 5
+
+# Visible-state overlay_id when Focus utility layer is active (button 2 held).
+OVERLAY_ID_UTILITY = 3
+
+# Firmware rainbow effects (random per utility-overlay hold).
+RAINBOW_EFFECT_SOLID = 0
+RAINBOW_EFFECT_TRAVEL_UP = 1
+RAINBOW_EFFECT_TRAVEL_DOWN = 2
+RAINBOW_EFFECT_COMET_UP = 3
+RAINBOW_EFFECT_COMET_DOWN = 4
+RAINBOW_EFFECT_COUNT = 5
+RAINBOW_CYCLE_S = 3.5
+RAINBOW_STANDBY_BRIGHTNESS = 0.15
+# Focus utility overlay: fader B (index 1) cycles rainbow effect on fader A while held.
+UTILITY_FADER_LAST_TOUCHED = 0
+UTILITY_FADER_ANIM_PICK = 1
 
 PAN_CENTER_CC = 64
 

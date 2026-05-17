@@ -25,7 +25,7 @@ python3 scripts/deploy.py
 
 No `/Volumes` mount required. See [docs/DEPLOY.md](docs/DEPLOY.md) for the full picture.
 
-Optional: `USB_DRIVE_AT_BOOT: true` in `settings.json` may expose **LUMAFADER** on normal plug-in for drag-and-drop; mpremote still works if it does not.
+**Edit settings on the device:** hold **all four front buttons** while plugging in USB → **LUMAFADER** appears; edit `settings.json`, eject, hard-reset. Or set `USB_DRIVE_AT_BOOT: true` to mount the drive on every boot. Routine firmware deploy uses `scripts/deploy.py` (mpremote) and does not need the drive.
 
 ### First-time install
 
@@ -42,7 +42,7 @@ Optional: `USB_DRIVE_AT_BOOT: true` in `settings.json` may expose **LUMAFADER** 
 ## Status
 
 - **Firmware:** Bitwig mode — absolute fader CCs, overlay banks, gesture/action CCs, SysEx LEDs, USB MIDI only.
-- **Extension:** **Focus** (workspace 1, blue) and **Four-Track** (workspace 2, green) are implemented. **User** (workspace 3, red) switches the indicator only. Build with `extension/build.zsh`; install `extension/build/LumaFader.bwextension` into Bitwig’s Extensions folder.
+- **Extension:** **Focus** (blue), **Four-Track** (green), and **User** (red, DAW-agnostic CC) are implemented. Build with `extension/build.zsh`; install `extension/build/LumaFader.bwextension` into Bitwig’s Extensions folder.
 
 ## Workspaces (overview)
 
@@ -50,7 +50,7 @@ Optional: `USB_DRIVE_AT_BOOT: true` in `settings.json` may expose **LUMAFADER** 
 |---------------------|-----------|-----------|------|
 | 4 (top) | Focus | Blue | One track + device chain; follows Bitwig selection |
 | 3 | Four-Track | Green | Four mixer tracks per page; does not follow selection after enter |
-| 2 | User | Red | Placeholder (no fader mapping yet) |
+| 2 | User | Red | User-defined CC grid; firmware-only LEDs and pickup |
 
 Workspace switches use **ACTION_CC** pulses on CC **60–62** (see [docs/PROTOCOL.md](docs/PROTOCOL.md)). Overlay holds use CC **50–52**; they engage after a short press (~80 ms) so the same buttons can still double-tap for workspace changes.
 
@@ -137,7 +137,7 @@ Send overlay behavior:
 - **Missing** send bus (project has fewer than four sends): LED off, fader ignored.
 - **Unused** send (bus exists, track not routed): dim LED; first touch enables the send and sets level.
 
-Utility fader A (last-touched) uses a rainbow animation when a target exists; B stays inactive.
+Utility fader A (last-touched) uses a firmware rainbow animation (random effect each time button 2 is held); B stays inactive.
 
 ### Install / reload
 
@@ -169,7 +169,7 @@ Send overlay behavior matches Focus: missing send bus → LED off; unused send o
 
 ### LED colors
 
-Fader LEDs use each slot’s **track color** for sends, volume, and pan (not send-bus colors). Inactive slots on a partial page are off.
+Fader LEDs use **send-bus colors** on the send page (same as Focus sends overlay) and **track color** for volume and pan. Inactive slots on a partial page are off.
 
 ### Navigation
 
@@ -201,6 +201,54 @@ python3 scripts/deploy.py   # firmware
 ```
 
 Reload the extension in Bitwig after copying the `.bwextension`.
+
+## User workspace (mode 3)
+
+DAW-agnostic **absolute MIDI CC** control. **Workspace changes are handled on the firmware** (red/green/blue indicator, user CC grid) — Bitwig does not need to be running. If the LumaFader extension is loaded, it stays in sync via the same workspace action CCs and SysEx, but it does **not** map your User-mode fader CCs. Configure **Generic MIDI** (or any host) to receive CCs on channels **1–4**.
+
+### Grid
+
+| Dimension | Count | Notes |
+|-----------|-------|--------|
+| Banks | 4 | Bank **N** → MIDI **channel N** (bank 4 = ch 4, default) |
+| Pages per bank | 4 | Page **1** = bottom button LED |
+| Views per page | 4 | View 0 default; hold buttons **4 / 3 / 2** for views 1–3 |
+| Faders | 4 | CC index `(page-1)×16 + view×4 + fader` → **0–63** per channel |
+
+Default CC layout is generated in `settings.py` (`USER_CC_GRID`). Override in `settings.json`.
+
+### Navigation (chords — quick tap on release)
+
+| Chord | Action |
+|-------|--------|
+| Hold **4**, tap **1** | Bank down (4→3→2→1) — flash that bank’s button LED |
+| Hold **1**, tap **4** | Bank up (1→2→3→4) |
+| Hold **2**, tap **3** | Page up (1→2→3→4) — flash that page’s button LED |
+| Hold **3**, tap **2** | Page down |
+
+**Enter User mode:** bank **4**, page **1**, view **0**, channel **4**.
+
+`USER_BANK_SWITCH_PAGE`: `"remember"` (default) keeps each bank’s last page; `"reset"` forces page 1 on bank change.
+
+### Pickup (from original LumaFader / Cherry firmware)
+
+Firmware remembers the last CC value sent per **(CC, channel)**. Faders do not send until the physical control **crosses** that value (with edge handling at 0/127). Unpicked slots show **dim** faders on the hardware.
+
+### Fine modifier
+
+Hold **button 1** for smaller steps (same as other workspaces).
+
+### LEDs (firmware only)
+
+- Fader color: **bank** base hue × **page** shade (`USER_BANK_COLORS`, `USER_PAGE_SHADES` in settings).
+- Nav: brief flash on the **button LED** for the bank or page you landed on.
+- Limits: fader/button edge flash (same style as Focus/Four-Track nav reject).
+
+### Not supported
+
+- Simultaneous bank + page navigation gestures.
+- Bitwig-driven fader colors or parameter feedback in User mode.
+- Aftertouch (CC only).
 
 ## Known limitations
 

@@ -46,5 +46,5 @@ while True:
     controller.update_inputs()
     controller.process()
     serial_config.update()
-    led_renderer.render(now, controller.buttons)
+    led_renderer.render(now, controller)
     time.sleep(0.0001)

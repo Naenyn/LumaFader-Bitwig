@@ -2,6 +2,21 @@ import json
 
 import constants as cfg
 
+
+def _default_user_cc_grid():
+    """4 banks × 4 pages × 4 views × 4 faders; CC 0–63 per MIDI channel (= bank number)."""
+    grid = []
+    for _bank in range(4):
+        bank_pages = []
+        for page in range(4):
+            page_views = []
+            for view in range(4):
+                base = page * 16 + view * 4
+                page_views.append([base + f for f in range(4)])
+            bank_pages.append(page_views)
+        grid.append(bank_pages)
+    return grid
+
 # Every binding name in BINDINGS should have a matching ACTION_CC entry.
 ACTION_CC_KEYS = (
     "workspace_focus",
@@ -72,7 +87,15 @@ class Settings:
             "overlay_1": {"type": "hold", "button": cfg.BUTTON_4},
             "overlay_2": {"type": "hold", "button": cfg.BUTTON_3},
             "overlay_3": {"type": "hold", "button": cfg.BUTTON_2},
+            "nav_user_bank_down": {"type": "chord", "hold": cfg.BUTTON_4, "tap": cfg.BUTTON_1},
+            "nav_user_bank_up": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
+            "nav_user_page_up": {"type": "chord", "hold": cfg.BUTTON_2, "tap": cfg.BUTTON_3},
+            "nav_user_page_down": {"type": "chord", "hold": cfg.BUTTON_3, "tap": cfg.BUTTON_2},
         },
+        "USER_BANK_SWITCH_PAGE": "remember",
+        "USER_CC_GRID": _default_user_cc_grid(),
+        "USER_BANK_COLORS": [list(c) for c in cfg.USER_BANK_COLORS],
+        "USER_PAGE_SHADES": list(cfg.USER_PAGE_SHADES),
     }
 
     OVERLAY_ACTIONS = ("overlay_1", "overlay_2", "overlay_3")
@@ -89,6 +112,8 @@ class Settings:
             if not self._validate():
                 print("Invalid settings; using defaults.")
                 self._use_defaults()
+            else:
+                self._merge_user_defaults()
         except Exception as e:
             print(f"Settings load error: {e}. Using defaults.")
             self._use_defaults()
@@ -115,6 +140,14 @@ class Settings:
     def _use_defaults(self):
         self.settings = dict(self.DEFAULTS)
         self.settings["ACTION_CC"] = dict(DEFAULT_ACTION_CC)
+        self.settings["USER_CC_GRID"] = _default_user_cc_grid()
+
+    def _merge_user_defaults(self):
+        for key, value in self.DEFAULTS.items():
+            if key not in self.settings:
+                self.settings[key] = value
+        if "USER_CC_GRID" not in self.settings:
+            self.settings["USER_CC_GRID"] = _default_user_cc_grid()
 
     def get_midi_channel(self):
         ch = int(self.settings.get("MIDI_CHANNEL", 1))
@@ -150,6 +183,26 @@ class Settings:
 
     def is_overlay_action(self, action_name):
         return action_name in self.OVERLAY_ACTIONS
+
+    def get_user_bank_switch_page(self):
+        mode = self.settings.get("USER_BANK_SWITCH_PAGE", "remember")
+        return mode if mode in ("remember", "reset") else "remember"
+
+    def get_user_cc(self, bank, page, view, fader_index):
+        """bank/page: 1–4; view: 0–3; fader_index: 0–3."""
+        grid = self.settings.get("USER_CC_GRID", _default_user_cc_grid())
+        return int(grid[bank - 1][page - 1][view][fader_index])
+
+    def get_user_bank_color(self, bank):
+        colors = self.settings.get("USER_BANK_COLORS", cfg.USER_BANK_COLORS)
+        return colors[bank - 1]
+
+    def get_user_fader_color(self, bank, page):
+        colors = self.settings.get("USER_BANK_COLORS", cfg.USER_BANK_COLORS)
+        shades = self.settings.get("USER_PAGE_SHADES", cfg.USER_PAGE_SHADES)
+        base = colors[bank - 1]
+        shade = shades[page - 1]
+        return tuple(max(0, min(255, int(c * shade))) for c in base)
 
 
 settings = Settings()
