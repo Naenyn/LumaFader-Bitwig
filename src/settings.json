@@ -1,8 +1,7 @@
 {
     "_help": [
         "LumaFader Bitwig — edit on LUMAFADER or via Web Serial, then hard-reset (unplug/replug).",
-        "Config drive: hold all four buttons while plugging USB, or set USB_DRIVE_AT_BOOT true.",
-        "USB_DRIVE_AT_BOOT: always mounts LUMAFADER (longer MIDI name on Mac is OK in that mode).",
+        "Config drive: hold all four buttons while plugging USB (LUMAFADER volume).",
         "Routine code deploy: python3 scripts/deploy.py (does not require the USB drive).",
         "FADER_CC: absolute CC per fader (A–D) → device remotes 1–4.",
         "FADER_CC_OVERLAY: absolute CC while button 4 held → remotes 5–8.",
@@ -11,7 +10,6 @@
         "FINE_MODIFIER_BUTTON: button 1 (bottom); finer steps, no button MIDI."
     ],
     "PROTOCOL_VERSION": 1,
-    "USB_DRIVE_AT_BOOT": false,
     "MIDI_CHANNEL": 1,
     "FADER_CC": [20, 21, 22, 23],
     "FADER_CC_OVERLAY": [24, 25, 26, 27],

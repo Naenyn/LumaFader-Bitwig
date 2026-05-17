@@ -61,7 +61,6 @@ DEFAULT_ACTION_CC = {
 class Settings:
     DEFAULTS = {
         "PROTOCOL_VERSION": 1,
-        "USB_DRIVE_AT_BOOT": False,
         "MIDI_CHANNEL": 1,
         "FADER_CC": [20, 21, 22, 23],
         "FADER_CC_OVERLAY": [24, 25, 26, 27],

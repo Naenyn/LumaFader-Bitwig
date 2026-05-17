@@ -104,7 +104,7 @@ def copy_src_files():
 
 
 def main():
-    print("Deploy: plug USB → LUMAFADER (USB_DRIVE_AT_BOOT=true in settings.json)")
+    print("Deploy: plug USB → LUMAFADER (hold all four buttons while plugging in)")
     print("UF2:    hold Pico BOOT button → RPI-RP2")
     print()
     while True:

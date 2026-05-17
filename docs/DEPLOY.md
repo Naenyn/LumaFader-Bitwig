@@ -13,10 +13,11 @@ The four front-panel buttons are not used for Pico BOOT, but **are** used to exp
 
 | Method | How |
 |--------|-----|
-| **Four buttons** (default) | Hold **all four** front buttons, plug USB, release when **LUMAFADER** mounts. Edit `settings.json`, eject, **hard reset**. |
-| **Always-on drive** | `USB_DRIVE_AT_BOOT: true` in `settings.json` — **LUMAFADER** on every normal plug-in. |
+| **Four buttons** | Hold **all four** front buttons, plug USB, keep holding until **LUMAFADER** mounts and the rainbow startup finishes (often ~5–8 s). **Red blink ×3** then rainbow = config mode. Edit `settings.json`, eject from the host, then **hard reset** (unplug/replug, no buttons) for normal MIDI-only mode. |
 | **Web Serial** | Browser config UI over USB serial (`CMD:` / `RSP:` in `serial_config.py`). No drive mount; restart after save. |
 | **Deploy script** | `python3 scripts/deploy.py` — copies `src/` including `settings.json` over mpremote. |
+
+**Config boot notes:** Enabling the USB drive in `boot.py` may **re-enumerate USB** once (you might see startup twice — keep all four buttons held through plug-in). **After eject**, macOS often triggers a **soft reload** (`code.py` only; `boot.py` does not run). The drive will **not** remount until the next four-button hard reset; MIDI should still work. Eject should **not** repeat the red config blink (firmware clears a one-shot NVM flag after the first startup animation).
 
 Normal boot hides the USB drive and keeps the short MIDI port name **LumaFader**. The longer CircuitPython MIDI name on macOS is expected while the drive is exposed.
 
@@ -52,7 +53,7 @@ Then **unplug and replug** (hard reset) so `boot.py` changes apply.
 
 - Set in `boot.py` via `usb_midi.set_names()` (needs CircuitPython **9+**).
 - Default: drive hidden at boot → short name **LumaFader** in ShowMIDI etc.
-- While **LUMAFADER** is mounted (four-button plug-in or `USB_DRIVE_AT_BOOT`), macOS may show the longer name (`LumaFader CircuitPython usb_m…`); that is fine for config sessions. Hard-reset without the drive for the short name again.
+- While **LUMAFADER** is mounted (four-button plug-in), macOS may show the longer name (`LumaFader CircuitPython usb_m…`); that is fine for config sessions. Hard-reset without the drive for the short name again.
 - If the name sticks after config, quit ShowMIDI and replug; macOS caches MIDI device names.
 
 ## Troubleshooting
@@ -60,5 +61,9 @@ Then **unplug and replug** (hard reset) so `boot.py` changes apply.
 | Symptom | Fix |
 |---------|-----|
 | Controls dead, no MIDI | Incompatible `lib/` — run `./scripts/install_libs.sh` after CP upgrade |
+| USB drive on every boot | Check `boot_out.txt` on the device — a `boot.py` crash skips `storage.disable_usb_drive()`. Redeploy `boot.py`, hard reset. |
+| Red blink on every boot (no buttons) | Same as above — `boot.py` must finish; early crash on read-only FS was a common cause (fixed: remount writable before setting volume label). |
+| Red blink again after eject | Stale config flag on old firmware; deploy latest `code.py` (clears NVM after startup). |
+| `mpremote` deploy: read-only FS | After config mode, run `mpremote connect auto exec "import storage; storage.remount('/', readonly=False)"` then deploy again, or copy via **LUMAFADER** while mounted. |
 | Long MIDI name in ShowMIDI | Normal boot without USB drive; hard reset after editing settings; reopen ShowMIDI |
 | `incompatible .mpy file` | Same as above — CP 9 libs required |

@@ -1,6 +1,6 @@
 import board
+import microcontroller
 import neopixel
-import storage
 import time
 
 import constants as cfg
@@ -35,9 +35,9 @@ class PixelHardware:
         self.pixels.show()
 
     def startup_animation(self):
-        """Stock LumaFader rainbow (~2s), with red blink if USB is read-only."""
-        readonly = storage.getmount("/").readonly
-        if readonly:
+        """Stock LumaFader rainbow (~2s). Red blink = four-button config boot (LUMAFADER mode)."""
+        config_boot = len(microcontroller.nvm) > 0 and microcontroller.nvm[0] == 1
+        if config_boot:
             for _ in range(3):
                 self.pixels.fill((255, 0, 0))
                 self.show()

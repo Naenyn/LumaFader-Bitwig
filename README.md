@@ -25,7 +25,7 @@ python3 scripts/deploy.py
 
 No `/Volumes` mount required. See [docs/DEPLOY.md](docs/DEPLOY.md) for the full picture.
 
-**Edit settings on the device:** hold **all four front buttons** while plugging in USB → **LUMAFADER** appears; edit `settings.json`, eject, hard-reset. Or set `USB_DRIVE_AT_BOOT: true` to mount the drive on every boot. Routine firmware deploy uses `scripts/deploy.py` (mpremote) and does not need the drive.
+**Edit settings on the device:** hold **all four front buttons** while plugging in USB → red blink ×3, then rainbow → **LUMAFADER** mounts. Edit `settings.json`, eject, then **hard-reset** (unplug/replug, no buttons) for normal mode. See [docs/DEPLOY.md](docs/DEPLOY.md). Routine deploy: `python3 scripts/deploy.py`.
 
 ### First-time install
 
