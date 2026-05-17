@@ -1,0 +1,33 @@
+{
+    "_help": [
+        "LumaFader Bitwig firmware settings.",
+        "Restart the device after saving (Web Serial or settings.json on CIRCUITPY).",
+        "BINDINGS remap gestures only; semantic meaning is fixed in the Bitwig extension."
+    ],
+    "PROTOCOL_VERSION": 1,
+    "MIDI_CHANNEL": 1,
+    "FADER_CC": [20, 21, 22, 23],
+    "BUTTON_NOTES": [60, 61, 62, 63],
+    "GESTURE_CC": 110,
+    "FINE_MODIFIER_CC": 100,
+    "FINE_MODIFIER_BUTTON": 3,
+    "FINE_SCALE": 0.25,
+    "DELTA_SCALE": 1.0,
+    "BINDINGS": {
+        "workspace_focus": {"type": "double_tap", "button": 0},
+        "workspace_four_track": {"type": "double_tap", "button": 1},
+        "workspace_user": {"type": "double_tap", "button": 2},
+        "scope_toggle": {"type": "double_tap", "button": 3},
+        "nav_next_track": {"type": "chord", "hold": 0, "tap": 3},
+        "nav_prev_track": {"type": "chord", "hold": 3, "tap": 0},
+        "nav_next_device": {"type": "chord", "hold": 1, "tap": 2},
+        "nav_prev_device": {"type": "chord", "hold": 2, "tap": 1},
+        "nav_next_track_page": {"type": "chord", "hold": 0, "tap": 3},
+        "nav_prev_track_page": {"type": "chord", "hold": 3, "tap": 0},
+        "nav_next_send": {"type": "chord", "hold": 1, "tap": 2},
+        "nav_prev_send": {"type": "chord", "hold": 2, "tap": 1},
+        "overlay_1": {"type": "hold", "button": 0},
+        "overlay_2": {"type": "hold", "button": 1},
+        "overlay_3": {"type": "hold", "button": 2}
+    }
+}

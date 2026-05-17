@@ -1,0 +1,723 @@
+# DJBB LumaFader Bitwig Integration v1 Specification
+
+## Overview
+
+Create:
+
+1. Custom firmware for the DJBB / DJ Baja Blast LumaFader hardware
+2. A Bitwig Studio controller extension
+3. A communication protocol between them
+
+The controller is intended to become:
+
+> A compact, production-focused Bitwig parameter sculpting surface.
+
+This is NOT intended to be:
+- a clip launcher
+- a performance controller
+- a generic mixer
+- a DAW replacement
+
+Primary workflow goals:
+- sound design
+- automation writing
+- expressive tactile control
+- fast contextual editing
+- low cognitive overhead
+- strong spatial consistency
+
+The interaction model is intentionally minimalist and coherent.
+
+---
+
+# Hardware Orientation / Physical Layout
+
+The physical layout of the LumaFader is important and should influence:
+- navigation semantics
+- directional feedback
+- LED animations
+- edge rejection flashes
+
+## Button Column
+
+There are 4 vertically-oriented buttons in a single column on the LEFT side of the device.
+
+Buttons are numbered:
+
+| Physical Position | Semantic Name |
+|---|---|
+| Bottom | BUTTON_1 |
+| Above BUTTON_1 | BUTTON_2 |
+| Above BUTTON_2 | BUTTON_3 |
+| Top | BUTTON_4 |
+
+Each button has:
+- its own keyswitch LED
+- an additional dedicated LED associated with the button
+
+The vertical arrangement is semantically important.
+
+Examples:
+- track navigation uses vertical semantics
+- invalid track navigation flashes top/bottom edges
+
+---
+
+## Fader Section
+
+To the RIGHT of the button column are 4 vertical faders.
+
+The faders are labeled left-to-right:
+
+| Physical Position | Semantic Name |
+|---|---|
+| Left-most | FADER_A |
+| Next | FADER_B |
+| Next | FADER_C |
+| Right-most | FADER_D |
+
+These are vertically-oriented faders.
+
+Horizontal semantics are important.
+
+Examples:
+- device/send navigation uses horizontal semantics
+- invalid device/send navigation flashes left/right edges
+
+---
+
+# Core Design Principles
+
+## 1. Stable Spatial Meaning
+
+Controls should preserve muscle memory whenever possible.
+
+Avoid:
+- automatic remapping
+- hidden behavior
+- context ambiguity
+- moving targets
+
+---
+
+## 2. Production-Oriented Workflow
+
+The controller is optimized for:
+- focused editing
+- parameter sculpting
+- send balancing
+- modulation shaping
+
+NOT:
+- clip launching
+- live performance workflows
+- deep transport control
+
+---
+
+## 3. Bitwig Is Source Of Truth
+
+Firmware should NOT maintain authoritative parameter state.
+
+Bitwig extension owns:
+- parameter values
+- workspace state
+- navigation state
+- LED semantics
+- visible track model
+- scope state
+
+Firmware primarily handles:
+- scanning inputs
+- gesture detection
+- rendering LEDs
+- applying relative delta calculations
+
+---
+
+## 4. No Wrapping
+
+Navigation NEVER wraps.
+
+Examples:
+- last device -> next device = invalid
+- last send -> next send = invalid
+- first track -> previous track = invalid
+
+Invalid navigation should visually reject.
+
+---
+
+## 5. Directional Navigation Grammar
+
+Navigation is spatially semantic.
+
+Outer button pair:
+- track axis
+
+Inner button pair:
+- within-track axis
+
+Examples:
+- devices
+- sends
+
+---
+
+# MIDI / Communication Architecture
+
+## Controller -> Bitwig
+
+Use standard MIDI messages:
+- CCs
+- notes
+- relative delta messages
+
+Firmware sends:
+- fader movement deltas
+- button presses
+- button releases
+- gesture events if desired
+
+---
+
+## Bitwig -> Controller
+
+Use SysEx packets.
+
+Reason:
+- semantic updates
+- atomic LED state updates
+- future extensibility
+- easier structured rendering
+
+---
+
+# SysEx Requirements
+
+Design a small extensible SysEx protocol.
+
+Use manufacturer ID 0x7D for development/testing.
+
+Minimum required message types:
+
+## 1. Visible State Update
+
+Contains:
+- workspace ID
+- overlay ID
+- remote scope
+- fader values
+- LED rendering mode
+- LED colors
+- animation hints if needed
+
+---
+
+## 2. Workspace Change
+
+---
+
+## 3. Scope Change
+
+---
+
+# Delta Relative Fader Behavior
+
+ALL faders operate in delta-relative mode.
+
+Physical fader position is NOT authoritative.
+
+Firmware should:
+- track physical delta
+- apply scaled parameter delta
+- send relative movement
+
+Bitwig parameter state is represented ONLY by LEDs.
+
+---
+
+# Fine Control Modifier
+
+Fine mode reduces sensitivity globally.
+
+Default binding:
+- Hold BUTTON_1 while moving any fader (works with overlays 2–4 held or default remotes)
+
+Firmware creeps absolute CC toward the physical position in small steps (`FINE_SCALE`, default 0.25 → 4× finer). Local only; no extra MIDI to Bitwig.
+
+Sensitivity scaling should be configurable.
+
+---
+
+# LED Rendering Philosophy
+
+LEDs are:
+- informational
+- contextual
+- semantic
+
+NOT decorative.
+
+LEDs should represent:
+- parameter values
+- scope state
+- workspace state
+- unavailable controls
+- navigation feedback
+
+---
+
+# Bipolar Parameter Rendering
+
+Pan and other bipolar parameters should render with:
+- center-origin visualization
+
+Meaning:
+- center LED = centered parameter
+- upward expansion = positive/right
+- downward expansion = negative/left
+
+Unipolar parameters:
+- bottom-to-top fill.
+
+---
+
+# Invalid Navigation Feedback
+
+Invalid navigation should produce directional red edge flashes.
+
+Examples:
+
+## Attempt next device/send when already at last
+- flash rightmost edge red
+
+## Attempt previous device/send when already at first
+- flash leftmost edge red
+
+## Attempt previous track/page when already at first
+- flash top edge red
+
+## Attempt next track/page when already at last
+- flash bottom edge red
+
+Flash should:
+- be brief
+- non-destructive
+- overlay existing LED state temporarily
+
+---
+
+# Future Wishlist (NOT v1)
+
+Design architecture so future features are possible:
+- directional transition animations
+- modulation visualization
+- animated LED overlays
+- richer workspace transitions
+
+DO NOT implement these yet.
+
+---
+
+# Configuration System
+
+Support configurable semantic bindings.
+
+Users may remap:
+- overlay buttons
+- navigation gestures
+- fine modifier
+- workspace double-taps
+
+BUT:
+semantic meanings remain fixed.
+
+Example:
+- users may move "sends overlay" to another button
+- users may NOT redefine what sends overlay means
+
+Prefer JSON configuration.
+
+---
+
+# Workspace Architecture
+
+There are 3 persistent workspaces.
+
+Switching workspaces uses double-tap gestures.
+
+---
+
+# Workspace Switching
+
+Default bindings:
+
+| Gesture | Workspace |
+|---|---|
+| Double-tap BUTTON_1 | Focus Workspace |
+| Double-tap BUTTON_2 | Four-Track Workspace |
+| Double-tap BUTTON_3 | User Workspace |
+
+---
+
+# Remote navigation axis (Focus workspace)
+
+Track remotes are the **left edge** of the remote target chain on the current track.
+Device remotes extend to the right through the device chain.
+
+Device navigation (inner button pair):
+- **Previous device** (left): at the first device, step into **track remotes** for this track (not an edge reject)
+- **Previous** while on track remotes: invalid (flash left edge)
+- **Next device** (right): from track remotes, step to the **first device** on the track
+- **Next** at the last device: invalid (flash right edge)
+
+Track navigation preserves remote position: if editing track remotes, stay on track remotes after changing track; if on a device, select the first device on the new track (existing behavior).
+
+Faders 1–4 / overlay 5–8 always control whichever remote target is active (track or device).
+
+SysEx `remote_scope` reports device (0) vs track (1) for LED semantics.
+
+---
+
+# WORKSPACE 1: Focus Workspace
+
+Purpose:
+- detailed sound design
+- focused editing
+- automation shaping
+
+This workspace FOLLOWS:
+- selected Bitwig track
+- selected Bitwig device
+
+---
+
+## Default View
+
+Controls:
+- Remotes 1-4
+
+| Fader | Meaning |
+|---|---|
+| A | Remote 1 |
+| B | Remote 2 |
+| C | Remote 3 |
+| D | Remote 4 |
+
+Meaning depends on:
+- Device Remote Scope
+OR
+- Track Remote Scope
+
+---
+
+## Hold Overlay 1
+
+Controls:
+- Remotes 5-8
+
+| Fader | Meaning |
+|---|---|
+| A | Remote 5 |
+| B | Remote 6 |
+| C | Remote 7 |
+| D | Remote 8 |
+
+---
+
+## Hold Overlay 2 (default: BUTTON_3)
+
+Controls:
+- Sends 1–4 on the **currently selected track**
+
+| Fader | Meaning |
+|---|---|
+| A | Send 1 |
+| B | Send 2 |
+| C | Send 3 |
+| D | Send 4 |
+
+Missing sends (send bus not defined in the project, e.g. fader D when only 3 sends exist):
+- LEDs off
+- ignore movement
+- no auto-creation
+
+Unused sends (send bus exists in the project but this track has not routed to it yet):
+- LEDs dimmed with send-bus color (hint that the slot is available)
+- first fader touch enables the send on this track and sets the level (Bitwig `isEnabled`)
+
+---
+
+## Hold Overlay 3 (default: BUTTON_2)
+
+Utility layer on the **selected track**.
+
+| Fader | Meaning |
+|---|---|
+| A | Last-touched parameter |
+| B | Undefined (reserved) |
+| C | Selected track pan |
+| D | Selected track volume |
+
+Last-touched parameter:
+- should follow most recently mouse/UI touched parameter
+- NOT recursively update from controller movement itself
+
+---
+
+# Focus Workspace Navigation
+
+## Track Navigation
+
+| Gesture | Action |
+|---|---|
+| Hold BUTTON_1 + Tap BUTTON_4 | Next track |
+| Hold BUTTON_4 + Tap BUTTON_1 | Previous track |
+
+Moves:
+- by ONE track
+
+No wrapping.
+
+---
+
+## Device Navigation
+
+| Gesture | Action |
+|---|---|
+| Hold BUTTON_2 + Tap BUTTON_3 | Next device |
+| Hold BUTTON_3 + Tap BUTTON_2 | Previous device |
+
+No wrapping.
+
+---
+
+# WORKSPACE 2: Four-Track Workspace
+
+Purpose:
+- multi-track balancing
+- routing
+- send shaping
+
+This workspace:
+- DOES NOT follow selected track
+- maintains independent viewport state
+
+---
+
+# Visible Track Model
+
+Workspace operates ONLY on:
+- visible Bitwig mixer tracks
+
+Collapsed group children are excluded.
+
+If groups expand/collapse:
+- visible track list updates immediately
+
+Track pages must remain quantized in groups of 4.
+
+Valid pages:
+- 1-4
+- 5-8
+- 9-12
+
+NEVER:
+- 2-5
+- 3-6
+etc.
+
+---
+
+# Four-Track Workspace Initialization
+
+Upon entering workspace:
+- initialize viewport around currently selected track
+
+After entering:
+- viewport remains independently paged
+
+---
+
+# Default View
+
+Controls:
+- current send page across current 4-track group
+
+| Fader | Meaning |
+|---|---|
+| A | Track 1 current send |
+| B | Track 2 current send |
+| C | Track 3 current send |
+| D | Track 4 current send |
+
+---
+
+# Hold Overlay 1
+
+Volume across current 4 tracks.
+
+| Fader | Meaning |
+|---|---|
+| A | Track 1 volume |
+| B | Track 2 volume |
+| C | Track 3 volume |
+| D | Track 4 volume |
+
+---
+
+# Hold Overlay 2
+
+Pan across current 4 tracks.
+
+Use bipolar LED rendering.
+
+| Fader | Meaning |
+|---|---|
+| A | Track 1 pan |
+| B | Track 2 pan |
+| C | Track 3 pan |
+| D | Track 4 pan |
+
+---
+
+# Hold Overlay 3
+
+Unused in v1.
+
+Reserved for future expansion.
+
+---
+
+# Four-Track Navigation
+
+## Track Page Navigation
+
+| Gesture | Action |
+|---|---|
+| Hold BUTTON_1 + Tap BUTTON_4 | Next group of 4 tracks |
+| Hold BUTTON_4 + Tap BUTTON_1 | Previous group of 4 tracks |
+
+No wrapping.
+
+---
+
+## Send Navigation
+
+| Gesture | Action |
+|---|---|
+| Hold BUTTON_2 + Tap BUTTON_3 | Next send |
+| Hold BUTTON_3 + Tap BUTTON_2 | Previous send |
+
+No wrapping.
+
+If send does not exist:
+- LED dim/off
+- movement ignored
+
+---
+
+# WORKSPACE 3: User Workspace
+
+Purpose:
+- direct user-defined MIDI controls
+
+This workspace intentionally has:
+- NO paging
+- NO contextual behavior
+- NO track following
+
+It is stable and fixed.
+
+---
+
+# User Workspace Layout
+
+## Default
+
+User CC Bank A
+
+---
+
+## Hold Overlay 1
+
+User CC Bank B
+
+---
+
+## Hold Overlay 2
+
+User CC Bank C
+
+---
+
+## Hold Overlay 3
+
+User CC Bank D
+
+---
+
+# User Workspace Requirements
+
+- stable fixed mappings
+- user-configurable
+- no paging
+- no navigation semantics
+
+LEDs:
+- simple value visualization
+- optional bank-identifying colors
+
+---
+
+# Firmware Responsibilities
+
+Firmware should handle:
+- scanning faders
+- scanning buttons
+- gesture recognition
+- delta calculations
+- LED rendering
+- SysEx parsing
+- overlay rendering
+- temporary flash overlays
+
+Firmware should NOT own:
+- Bitwig semantic state
+- parameter ownership
+- track topology
+- remote meaning
+
+---
+
+# Bitwig Extension Responsibilities
+
+Extension should handle:
+- visible track list
+- track/device navigation
+- remote scope
+- workspace state
+- parameter observation
+- send existence
+- last-touched parameter tracking
+- LED semantic generation
+- SysEx packet generation
+- topology updates
+
+---
+
+# Interaction Philosophy Summary
+
+The controller should:
+- never lie
+- never silently remap
+- never auto-wrap
+- never auto-create sends
+- never hide unavailable state
+
+Empty/unavailable things should remain visibly empty.
+
+Spatial consistency and muscle memory are primary priorities.
+
+Implement the system with clean architecture and strong separation of concerns so future features can be added cleanly.

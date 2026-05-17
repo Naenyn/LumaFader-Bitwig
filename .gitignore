@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+srccombined.txt
+
+# Bitwig extension build output (compile against bitwig.jar from the app install)
+extension/build/
+
+# Do not vendor Bitwig SDK / API jars
+*.jar
+bitwig.jar
