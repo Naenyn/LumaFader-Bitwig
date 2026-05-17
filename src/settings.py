@@ -51,6 +51,24 @@ _LEGACY_MODE_ACTION_KEYS = {
     "workspace_user": "mode_user",
 }
 
+# Binding keys per mode; ACTION_CC stays overlay_1 / overlay_2 / overlay_3.
+FOCUS_OVERLAY_BINDINGS = (
+    "focus_overlay_1",
+    "focus_overlay_2",
+    "focus_overlay_3",
+)
+FOUR_TRACK_OVERLAY_BINDINGS = (
+    "four_track_overlay_1",
+    "four_track_overlay_2",
+    "four_track_overlay_3",
+)
+OVERLAY_CC_ACTIONS = ("overlay_1", "overlay_2", "overlay_3")
+_LEGACY_SHARED_OVERLAY_BINDINGS = {
+    "overlay_1": FOCUS_OVERLAY_BINDINGS[0],
+    "overlay_2": FOCUS_OVERLAY_BINDINGS[1],
+    "overlay_3": FOCUS_OVERLAY_BINDINGS[2],
+}
+
 
 def _migrate_legacy_mode_keys(settings):
     """Rename workspace_* → mode_* in ACTION_CC / BINDINGS (in-place)."""
@@ -64,6 +82,37 @@ def _migrate_legacy_mode_keys(settings):
             if new not in block:
                 block[new] = block[old]
             del block[old]
+
+
+def _migrate_legacy_overlay_bindings(settings):
+    """Split shared overlay_* hold bindings into Focus and Four-Track keys."""
+    bindings = settings.get("BINDINGS")
+    if not isinstance(bindings, dict):
+        return
+    for old, focus_key in _LEGACY_SHARED_OVERLAY_BINDINGS.items():
+        if old not in bindings:
+            continue
+        spec = bindings.pop(old)
+        ft_key = FOUR_TRACK_OVERLAY_BINDINGS[
+            FOCUS_OVERLAY_BINDINGS.index(focus_key)
+        ]
+        for key in (focus_key, ft_key):
+            if key not in bindings:
+                bindings[key] = (
+                    dict(spec) if isinstance(spec, dict) else spec
+                )
+
+
+def _default_overlay_bindings():
+    """Same default buttons for both modes (btn 4/3/2 holds)."""
+    return {
+        "focus_overlay_1": {"type": "hold", "button": cfg.BUTTON_4},
+        "focus_overlay_2": {"type": "hold", "button": cfg.BUTTON_3},
+        "focus_overlay_3": {"type": "hold", "button": cfg.BUTTON_2},
+        "four_track_overlay_1": {"type": "hold", "button": cfg.BUTTON_4},
+        "four_track_overlay_2": {"type": "hold", "button": cfg.BUTTON_3},
+        "four_track_overlay_3": {"type": "hold", "button": cfg.BUTTON_2},
+    }
 
 
 DEFAULT_ACTION_CC = {
@@ -109,9 +158,7 @@ class Settings:
             "nav_prev_track_page": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
             "nav_next_send": {"type": "chord", "hold": cfg.BUTTON_3, "tap": cfg.BUTTON_2},
             "nav_prev_send": {"type": "chord", "hold": cfg.BUTTON_2, "tap": cfg.BUTTON_3},
-            "overlay_1": {"type": "hold", "button": cfg.BUTTON_4},
-            "overlay_2": {"type": "hold", "button": cfg.BUTTON_3},
-            "overlay_3": {"type": "hold", "button": cfg.BUTTON_2},
+            **_default_overlay_bindings(),
             "nav_user_bank_down": {"type": "chord", "hold": cfg.BUTTON_4, "tap": cfg.BUTTON_1},
             "nav_user_bank_up": {"type": "chord", "hold": cfg.BUTTON_1, "tap": cfg.BUTTON_4},
             "nav_user_page_up": {"type": "chord", "hold": cfg.BUTTON_2, "tap": cfg.BUTTON_3},
@@ -123,8 +170,6 @@ class Settings:
         "USER_PAGE_SHADES": list(cfg.USER_PAGE_SHADES),
     }
 
-    OVERLAY_ACTIONS = ("overlay_1", "overlay_2", "overlay_3")
-
     def __init__(self, settings_path="settings.json"):
         self.settings_path = settings_path
         self.settings = {}
@@ -135,6 +180,7 @@ class Settings:
             with open(self.settings_path, "r") as f:
                 self.settings = json.load(f)
             _migrate_legacy_mode_keys(self.settings)
+            _migrate_legacy_overlay_bindings(self.settings)
             if not self._validate():
                 print("Invalid settings; using defaults.")
                 self._use_defaults()
@@ -174,6 +220,10 @@ class Settings:
                 self.settings[key] = value
         if "USER_CC_GRID" not in self.settings:
             self.settings["USER_CC_GRID"] = _default_user_cc_grid()
+        bindings = self.settings.setdefault("BINDINGS", {})
+        for key, value in _default_overlay_bindings().items():
+            if key not in bindings:
+                bindings[key] = value
         # Fixed contract with LumaFaderExtension.java — not user-configurable.
         for key in FADER_CC_BANK_KEYS:
             self.settings[key] = list(self.DEFAULTS[key])
@@ -211,8 +261,20 @@ class Settings:
     def get_binding(self, name):
         return self.settings.get("BINDINGS", {}).get(name)
 
-    def is_overlay_action(self, action_name):
-        return action_name in self.OVERLAY_ACTIONS
+    @staticmethod
+    def overlay_binding_keys_for_mode(mode_id):
+        if mode_id == cfg.MODE_FOUR_TRACK:
+            return FOUR_TRACK_OVERLAY_BINDINGS
+        if mode_id == cfg.MODE_FOCUS:
+            return FOCUS_OVERLAY_BINDINGS
+        return ()
+
+    def is_overlay_binding_name(self, name):
+        return (
+            name in FOCUS_OVERLAY_BINDINGS
+            or name in FOUR_TRACK_OVERLAY_BINDINGS
+            or name in OVERLAY_CC_ACTIONS
+        )
 
     def get_user_bank_switch_page(self):
         mode = self.settings.get("USER_BANK_SWITCH_PAGE", "remember")

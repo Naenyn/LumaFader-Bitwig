@@ -93,13 +93,17 @@ class LumaFaderController:
         return changed
 
     def process(self):
-        pending_actions = self.gestures.update()
+        pending_actions = self.gestures.update(self.visible_state.mode_id)
         self._apply_mode_switches(pending_actions)
 
         mode_id = self.visible_state.mode_id
         if mode_id != self._last_mode:
             if mode_id == cfg.MODE_USER:
                 self.user_mode.reset_on_mode_enter()
+            self.gestures.active_overlays = self.gestures._detect_overlay_holds(mode_id)
+            self._overlay_remotes_5_8 = False
+            self._overlay_sends = False
+            self._overlay_utility = False
             self._last_mode = mode_id
 
         non_mode = [
@@ -176,7 +180,7 @@ class LumaFaderController:
             self._arm_nav_pickup()
 
         for name in actions:
-            if settings.is_overlay_action(name):
+            if settings.is_overlay_binding_name(name):
                 continue
             if name in _MODE_SWITCH_ACTIONS:
                 continue

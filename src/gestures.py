@@ -7,14 +7,15 @@ class GestureEngine:
 
     def __init__(self, buttons):
         self.buttons = buttons
+        # Canonical overlay slots: overlay_1, overlay_2, overlay_3 (ACTION_CC keys).
         self.active_overlays = set()
         self._pending_actions = []
 
-    def update(self):
+    def update(self, mode_id):
         self._pending_actions = []
         self._detect_double_taps()
         self._detect_chords()
-        self.active_overlays = self._detect_overlay_holds()
+        self.active_overlays = self._detect_overlay_holds(mode_id)
         return list(self._pending_actions)
 
     def _detect_double_taps(self):
@@ -46,11 +47,12 @@ class GestureEngine:
             ):
                 self._pending_actions.append(name)
 
-    def _detect_overlay_holds(self):
-        """Hold overlays after a short press — not the full double-tap window (0.3s)."""
+    def _detect_overlay_holds(self, mode_id):
+        """Hold overlays after a short press — bindings are per mode."""
         active = set()
-        for name in settings.OVERLAY_ACTIONS:
-            binding = settings.get_binding(name)
+        binding_keys = settings.overlay_binding_keys_for_mode(mode_id)
+        for slot, binding_key in enumerate(binding_keys):
+            binding = settings.get_binding(binding_key)
             if not binding or binding.get("type") != "hold":
                 continue
             btn_idx = binding.get("button", -1)
@@ -60,5 +62,5 @@ class GestureEngine:
             if button.was_double_pressed:
                 continue
             if button.pressed and button.hold_time >= cfg.OVERLAY_HOLD_DELAY_S:
-                active.add(name)
+                active.add(settings.OVERLAY_CC_ACTIONS[slot])
         return active

@@ -97,6 +97,17 @@
             padding-bottom: 6px;
             margin-bottom: 12px;
         }
+        .section h3 {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #5a6a8a;
+            margin: 16px 0 8px;
+        }
+        .section.mode-focus { border-left: 4px solid #2a4acc; }
+        .section.mode-four-track { border-left: 4px solid #1a8a3a; }
+        .section.mode-user { border-left: 4px solid #b03030; }
+        .section.mode-shared { border-left: 4px solid #6a7a9a; }
         .section.collapsed .section-body { display: none; }
         .section-toggle {
             cursor: pointer;
@@ -169,6 +180,32 @@
             align-items: end;
         }
         .binding-fields .field { margin: 0; min-width: 100px; }
+        .binding-type-fixed .binding-type-value {
+            display: block;
+            font-size: 12px;
+            color: #2a4a7a;
+            margin-top: 2px;
+            text-transform: lowercase;
+        }
+        .shared-control-card { margin-bottom: 10px; }
+        .binding-card.binding-conflict,
+        .shared-control-card.binding-conflict {
+            border-color: #c05030;
+            background: #fff8f5;
+        }
+        select.input-conflict {
+            border-color: #c05030;
+            color: #8a4020;
+        }
+        .binding-conflict-warn {
+            margin-top: 8px;
+            padding: 8px 10px;
+            border: 1px solid #c05030;
+            color: #8a4020;
+            font-size: 11px;
+            display: none;
+        }
+        .binding-conflict-warn.show { display: block; }
         .live-panel {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -256,6 +293,27 @@
             font-weight: 600;
             color: #2a4a7a;
         }
+        /* Fader bank table: keep CC list on one line; let Focus / Four-Track wrap */
+        #faderCcTable td.cc-num {
+            width: 1%;
+            min-width: 8.5em;
+            white-space: nowrap;
+            text-align: left;
+        }
+        #faderCcTable th:first-child,
+        #faderCcTable th:nth-child(2),
+        #faderCcTable th:nth-child(3),
+        #faderCcTable td:nth-child(2),
+        #faderCcTable td:nth-child(3) {
+            white-space: nowrap;
+            width: 1%;
+        }
+        #faderCcTable td:nth-child(4),
+        #faderCcTable td:nth-child(5) {
+            min-width: 10em;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
         .protocol-warn {
             margin-top: 8px;
             padding: 8px 10px;
@@ -303,16 +361,15 @@
                 <div class="slider-bars" id="sliderBars"></div>
             </div>
 
-            <div class="section">
-                <h2>MIDI channel &amp; sensitivity</h2>
+            <div class="section mode-shared">
+                <h2>Shared</h2>
+                <p class="hint">MIDI channel, fine control, fader CC banks (Focus / Four-Track), and mode switches. Overlay <em>hold</em> buttons are configured per mode below.</p>
+
+                <h3>MIDI channel &amp; sensitivity</h3>
                 <div class="grid-2">
                     <div class="field">
                         <label for="midiChannel">MIDI channel (1–16)</label>
                         <input type="number" id="midiChannel" min="1" max="16" value="1">
-                    </div>
-                    <div class="field">
-                        <label for="fineModifierBtn">Fine modifier button</label>
-                        <select id="fineModifierBtn"></select>
                     </div>
                     <div class="field">
                         <label for="fineScale">Fine scale</label>
@@ -323,40 +380,93 @@
                         <input type="number" id="deltaScale" min="0.01" max="4" step="0.01" value="1">
                     </div>
                 </div>
-            </div>
 
-            <div class="section" id="faderCcSection">
-                <h2>Fader CC numbers (fixed protocol)</h2>
-                <p class="hint">Shared by <strong>Focus</strong> and <strong>Four-Track</strong> (not User mode). Firmware sends these absolute CCs on the MIDI channel above; the Bitwig extension listens for the same hardcoded numbers. Layer meaning differs per mode — see table. <strong>Gesture bindings</strong> below choose which button hold selects each layer.</p>
+                <h3>Shared controls</h3>
+                <p class="hint">Button 1 = bottom, 4 = top. Mode switches are double-tap only; fine modifier is hold only. Duplicate buttons in a group are auto-swapped; conflicts are highlighted in red.</p>
+                <div class="binding-card shared-control-card" id="fineModifierCard">
+                    <div class="binding-title">Fine modifier (hold)</div>
+                    <div class="binding-fields">
+                        <div class="field">
+                            <label for="fineModifierBtn">Button</label>
+                            <select id="fineModifierBtn" data-shared-button-control="fine"></select>
+                        </div>
+                        <p class="hint" style="margin:0">Sends CC 53 to Bitwig while held (all modes).</p>
+                    </div>
+                </div>
+                <div id="bindingFieldsShared"></div>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_shared"></p>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_fine_holds"></p>
+
+                <h3 id="faderCcSection">Fader CC numbers (fixed protocol)</h3>
+                <p class="hint">Focus and Four-Track only (not User mode). Same CC numbers on the wire; see mode sections for extension mapping.</p>
                 <table class="protocol-table" id="faderCcTable">
                     <thead><tr><th>CCs (A–D)</th><th>Layer</th><th>Hold</th><th>Focus (extension)</th><th>Four-Track (extension)</th></tr></thead>
                     <tbody id="faderCcTableBody"></tbody>
                 </table>
                 <p class="protocol-warn" id="faderCcMismatch"></p>
-            </div>
 
-            <div class="section">
-                <h2>Bitwig action CCs (fixed protocol)</h2>
-                <p class="hint">Focus and Four-Track modes talk to the <strong>LumaFader Bitwig extension</strong> only. When you perform a gesture, firmware sends a short CC pulse on these numbers; the extension listens for the same hardcoded CCs. You configure <em>which button gesture</em> triggers each action below — not the CC numbers.</p>
-                <table class="protocol-table" id="actionCcTable">
+                <h3>Action CCs (fixed protocol)</h3>
+                <p class="hint">CC numbers are not editable — assign gestures in each mode section.</p>
+                <table class="protocol-table">
                     <thead><tr><th>CC</th><th>Action</th><th>Extension behavior</th></tr></thead>
-                    <tbody id="actionCcTableBody"></tbody>
+                    <tbody id="actionCcTableBodyShared"></tbody>
                 </table>
                 <p class="protocol-warn" id="actionCcMismatch"></p>
             </div>
 
-            <div class="section">
-                <h2>Gesture bindings</h2>
-                <p class="hint">Button 1 = bottom, 4 = top. Double-tap / hold / chord timing is in firmware.</p>
-                <div id="bindingFields"></div>
+            <div class="section mode-focus">
+                <h2>Focus mode</h2>
+                <p class="hint">Blue indicator. Cursor track + device chain; remotes, sends, and utility overlays.</p>
+
+                <h3>Overlay holds</h3>
+                <p class="hint">Which button to hold for each fader layer (CC 50–52 to Bitwig).</p>
+                <div id="bindingFieldsFocusOverlay"></div>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_focus_overlay"></p>
+
+                <h3>Navigation chords</h3>
+                <div id="bindingFieldsFocusNav"></div>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_focus_nav"></p>
+
+                <h3>Action CCs (fixed protocol)</h3>
+                <table class="protocol-table">
+                    <thead><tr><th>CC</th><th>Action</th><th>Extension behavior</th></tr></thead>
+                    <tbody id="actionCcTableBodyFocus"></tbody>
+                </table>
             </div>
 
-            <div class="section">
+            <div class="section mode-four-track">
+                <h2>Four-Track mode</h2>
+                <p class="hint">Green indicator. Four visible mixer tracks per page; send, volume, and pan layers.</p>
+
+                <h3>Overlay holds</h3>
+                <p class="hint">Hold buttons for volume / pan layers (CC 50–52).</p>
+                <div id="bindingFieldsFourTrackOverlay"></div>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_four_track_overlay"></p>
+
+                <h3>Navigation chords</h3>
+                <div id="bindingFieldsFourTrackNav"></div>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_four_track_nav"></p>
+
+                <h3>Action CCs (fixed protocol)</h3>
+                <table class="protocol-table">
+                    <thead><tr><th>CC</th><th>Action</th><th>Extension behavior</th></tr></thead>
+                    <tbody id="actionCcTableBodyFourTrack"></tbody>
+                </table>
+            </div>
+
+            <div class="section mode-user">
                 <div class="section-toggle" data-collapse="userModeSection">
                     <h2>User mode</h2>
                     <span>▼</span>
                 </div>
                 <div class="section-body" id="userModeSection">
+                    <p class="hint">Red indicator. DAW-agnostic CC grid. Bitwig extension does not map these faders.</p>
+
+                    <h3>Gesture bindings</h3>
+                    <div id="bindingFieldsUser"></div>
+                    <p class="binding-conflict-warn protocol-warn" id="conflictWarn_user"></p>
+
+                    <h3>CC grid</h3>
                     <div class="field">
                         <label for="userBankSwitch">Bank switch page behavior</label>
                         <select id="userBankSwitch">
@@ -364,7 +474,7 @@
                             <option value="reset">reset — page 1 when changing bank</option>
                         </select>
                     </div>
-                    <p class="hint" style="margin:12px 0 8px">CC grid: bank = MIDI channel 1–4, page 1–4, view 0–3 (hold buttons 4/3/2).</p>
+                    <p class="hint" style="margin:8px 0">Bank = MIDI channel 1–4, page 1–4, view 0–3 (hold buttons 4/3/2).</p>
                     <div class="user-grid-tabs" id="userBankTabs"></div>
                     <div class="user-grid-tabs" id="userPageTabs"></div>
                     <div id="userCcGrid"></div>
@@ -410,27 +520,48 @@
         ];
 
         const PROTOCOL_ACTION_CC = [
-            { key: 'nav_next_track', cc: 40, behavior: 'Focus / Four-Track: next track (chord pulse)' },
-            { key: 'nav_prev_track', cc: 41, behavior: 'Focus / Four-Track: previous track' },
-            { key: 'nav_next_device', cc: 42, behavior: 'Focus: next device on chain' },
-            { key: 'nav_prev_device', cc: 43, behavior: 'Focus: previous device' },
-            { key: 'nav_next_track_page', cc: 44, behavior: 'Four-Track: next track page' },
-            { key: 'nav_prev_track_page', cc: 45, behavior: 'Four-Track: previous track page' },
-            { key: 'nav_next_send', cc: 46, behavior: 'Four-Track: next send slot' },
-            { key: 'nav_prev_send', cc: 47, behavior: 'Four-Track: previous send slot' },
-            { key: 'overlay_1', cc: 50, behavior: '127 while overlay 1 held, 0 on release — LED layer (remotes 5–8)' },
-            { key: 'overlay_2', cc: 51, behavior: '127 while overlay 2 held — sends overlay' },
-            { key: 'overlay_3', cc: 52, behavior: '127 while overlay 3 held — utility overlay' },
-            { key: 'fine_modifier', cc: 53, behavior: '127 while fine held, 0 on release — takeover hint' },
-            { key: 'mode_focus', cc: 60, behavior: 'Double-tap pulse → Focus mode (mode 1)' },
-            { key: 'mode_four_track', cc: 61, behavior: 'Double-tap pulse → Four-Track mode (mode 2)' },
-            { key: 'mode_user', cc: 62, behavior: 'Double-tap pulse → User mode (mode 3); extension sync only' },
+            { key: 'overlay_1', cc: 50, group: 'shared', behavior: '127 held / 0 release — layer 1 (Focus: remotes 5–8; Four-Track: volume)' },
+            { key: 'overlay_2', cc: 51, group: 'shared', behavior: '127 held / 0 release — layer 2 (Focus: sends; Four-Track: pan)' },
+            { key: 'overlay_3', cc: 52, group: 'shared', behavior: '127 held / 0 release — layer 3 (Focus: utility; Four-Track: unused)' },
+            { key: 'fine_modifier', cc: 53, group: 'shared', behavior: '127 while fine held, 0 on release — takeover hint' },
+            { key: 'mode_focus', cc: 60, group: 'shared', behavior: 'Double-tap pulse → Focus mode' },
+            { key: 'mode_four_track', cc: 61, group: 'shared', behavior: 'Double-tap pulse → Four-Track mode' },
+            { key: 'mode_user', cc: 62, group: 'shared', behavior: 'Double-tap pulse → User mode (extension sync only)' },
+            { key: 'nav_next_track', cc: 40, group: 'focus', behavior: 'Next track (chord pulse)' },
+            { key: 'nav_prev_track', cc: 41, group: 'focus', behavior: 'Previous track' },
+            { key: 'nav_next_device', cc: 42, group: 'focus', behavior: 'Next device on chain' },
+            { key: 'nav_prev_device', cc: 43, group: 'focus', behavior: 'Previous device' },
+            { key: 'nav_next_track_page', cc: 44, group: 'four_track', behavior: 'Next track page (4 tracks)' },
+            { key: 'nav_prev_track_page', cc: 45, group: 'four_track', behavior: 'Previous track page' },
+            { key: 'nav_next_send', cc: 46, group: 'four_track', behavior: 'Next send slot' },
+            { key: 'nav_prev_send', cc: 47, group: 'four_track', behavior: 'Previous send slot' },
         ];
+
+        const ACTION_CC_TABLE_IDS = {
+            shared: 'actionCcTableBodyShared',
+            focus: 'actionCcTableBodyFocus',
+            four_track: 'actionCcTableBodyFourTrack',
+        };
+
+        const BINDING_ROOT_IDS = {
+            shared: 'bindingFieldsShared',
+            focus_overlay: 'bindingFieldsFocusOverlay',
+            focus_nav: 'bindingFieldsFocusNav',
+            four_track_overlay: 'bindingFieldsFourTrackOverlay',
+            four_track_nav: 'bindingFieldsFourTrackNav',
+            user: 'bindingFieldsUser',
+        };
 
         const LEGACY_MODE_ACTION_KEYS = {
             workspace_focus: 'mode_focus',
             workspace_four_track: 'mode_four_track',
             workspace_user: 'mode_user',
+        };
+
+        const LEGACY_SHARED_OVERLAY_BINDINGS = {
+            overlay_1: ['focus_overlay_1', 'four_track_overlay_1'],
+            overlay_2: ['focus_overlay_2', 'four_track_overlay_2'],
+            overlay_3: ['focus_overlay_3', 'four_track_overlay_3'],
         };
 
         function migrateLegacyModeKeys(obj) {
@@ -441,6 +572,21 @@
                     if (block[oldK] === undefined) continue;
                     if (block[newK] === undefined) block[newK] = block[oldK];
                     delete block[oldK];
+                }
+            }
+        }
+
+        function migrateLegacyOverlayBindings(obj) {
+            const bindings = obj.BINDINGS;
+            if (!bindings) return;
+            for (const [oldK, keys] of Object.entries(LEGACY_SHARED_OVERLAY_BINDINGS)) {
+                if (bindings[oldK] === undefined) continue;
+                const spec = bindings[oldK];
+                delete bindings[oldK];
+                for (const k of keys) {
+                    if (bindings[k] === undefined) {
+                        bindings[k] = JSON.parse(JSON.stringify(spec));
+                    }
                 }
             }
         }
@@ -477,24 +623,79 @@
         }
 
         const BINDING_META = [
-            { key: 'mode_focus', label: 'Mode → Focus', types: ['double_tap'] },
-            { key: 'mode_four_track', label: 'Mode → Four-Track', types: ['double_tap'] },
-            { key: 'mode_user', label: 'Mode → User', types: ['double_tap'] },
-            { key: 'nav_next_track', label: 'Nav next track', types: ['chord'] },
-            { key: 'nav_prev_track', label: 'Nav prev track', types: ['chord'] },
-            { key: 'nav_next_device', label: 'Nav next device', types: ['chord'] },
-            { key: 'nav_prev_device', label: 'Nav prev device', types: ['chord'] },
-            { key: 'nav_next_track_page', label: 'Nav next track page', types: ['chord'] },
-            { key: 'nav_prev_track_page', label: 'Nav prev track page', types: ['chord'] },
-            { key: 'nav_next_send', label: 'Nav next send', types: ['chord'] },
-            { key: 'nav_prev_send', label: 'Nav prev send', types: ['chord'] },
-            { key: 'overlay_1', label: 'Overlay 1', types: ['hold'] },
-            { key: 'overlay_2', label: 'Overlay 2', types: ['hold'] },
-            { key: 'overlay_3', label: 'Overlay 3', types: ['hold'] },
-            { key: 'nav_user_bank_down', label: 'User: bank down', types: ['chord'] },
-            { key: 'nav_user_bank_up', label: 'User: bank up', types: ['chord'] },
-            { key: 'nav_user_page_up', label: 'User: page up', types: ['chord'] },
-            { key: 'nav_user_page_down', label: 'User: page down', types: ['chord'] },
+            { key: 'mode_focus', label: 'Focus Mode', group: 'shared', types: ['double_tap'] },
+            { key: 'mode_four_track', label: 'Four-Track Mode', group: 'shared', types: ['double_tap'] },
+            { key: 'mode_user', label: 'User Mode', group: 'shared', types: ['double_tap'] },
+            { key: 'focus_overlay_1', label: 'Overlay 1 — remotes 5–8', group: 'focus_overlay', types: ['hold'] },
+            { key: 'focus_overlay_2', label: 'Overlay 2 — sends', group: 'focus_overlay', types: ['hold'] },
+            { key: 'focus_overlay_3', label: 'Overlay 3 — utility', group: 'focus_overlay', types: ['hold'] },
+            { key: 'nav_next_track', label: 'Nav next track', group: 'focus_nav', types: ['chord'] },
+            { key: 'nav_prev_track', label: 'Nav prev track', group: 'focus_nav', types: ['chord'] },
+            { key: 'nav_next_device', label: 'Nav next device', group: 'focus_nav', types: ['chord'] },
+            { key: 'nav_prev_device', label: 'Nav prev device', group: 'focus_nav', types: ['chord'] },
+            { key: 'four_track_overlay_1', label: 'Overlay 1 — volume', group: 'four_track_overlay', types: ['hold'] },
+            { key: 'four_track_overlay_2', label: 'Overlay 2 — pan', group: 'four_track_overlay', types: ['hold'] },
+            { key: 'four_track_overlay_3', label: 'Overlay 3 — (unused)', group: 'four_track_overlay', types: ['hold'] },
+            { key: 'nav_next_track_page', label: 'Nav next track page', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_prev_track_page', label: 'Nav prev track page', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_next_send', label: 'Nav next send', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_prev_send', label: 'Nav prev send', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_user_bank_down', label: 'Bank down', group: 'user', types: ['chord'] },
+            { key: 'nav_user_bank_up', label: 'Bank up', group: 'user', types: ['chord'] },
+            { key: 'nav_user_page_up', label: 'Page up', group: 'user', types: ['chord'] },
+            { key: 'nav_user_page_down', label: 'Page down', group: 'user', types: ['chord'] },
+        ];
+
+        const CONFLICT_SCOPES = [
+            {
+                id: 'shared',
+                kind: 'button',
+                label: 'Shared controls',
+                warnId: 'conflictWarn_shared',
+                slotIds: () => ['fine', ...BINDING_META.filter(m => m.group === 'shared').map(m => m.key)],
+            },
+            {
+                id: 'fine_holds',
+                kind: 'fine_cross',
+                label: 'Fine modifier vs overlay holds',
+                warnId: 'conflictWarn_fine_holds',
+                holdIds: () => BINDING_META.filter(m => m.types.includes('hold')).map(m => m.key),
+            },
+            {
+                id: 'focus_overlay',
+                kind: 'button',
+                label: 'Focus overlay holds',
+                warnId: 'conflictWarn_focus_overlay',
+                slotIds: () => BINDING_META.filter(m => m.group === 'focus_overlay').map(m => m.key),
+            },
+            {
+                id: 'four_track_overlay',
+                kind: 'button',
+                label: 'Four-Track overlay holds',
+                warnId: 'conflictWarn_four_track_overlay',
+                slotIds: () => BINDING_META.filter(m => m.group === 'four_track_overlay').map(m => m.key),
+            },
+            {
+                id: 'focus_nav',
+                kind: 'chord',
+                label: 'Focus navigation chords',
+                warnId: 'conflictWarn_focus_nav',
+                bindingKeys: () => BINDING_META.filter(m => m.group === 'focus_nav').map(m => m.key),
+            },
+            {
+                id: 'four_track_nav',
+                kind: 'chord',
+                label: 'Four-Track navigation chords',
+                warnId: 'conflictWarn_four_track_nav',
+                bindingKeys: () => BINDING_META.filter(m => m.group === 'four_track_nav').map(m => m.key),
+            },
+            {
+                id: 'user',
+                kind: 'chord',
+                label: 'User mode chords',
+                warnId: 'conflictWarn_user',
+                bindingKeys: () => BINDING_META.filter(m => m.group === 'user').map(m => m.key),
+            },
         ];
 
         let port, reader, writer, readBuffer = '';
@@ -532,9 +733,11 @@
             t._tm = setTimeout(() => t.classList.remove('show'), ms);
         }
 
-        function buttonSelect(id, selected) {
+        function buttonSelect(id, selected, bindingKey, part) {
             const sel = document.createElement('select');
             sel.id = id;
+            if (bindingKey) sel.dataset.bindingKey = bindingKey;
+            if (part) sel.dataset.bindingPart = part;
             BUTTON_OPTIONS.forEach(o => {
                 const opt = document.createElement('option');
                 opt.value = o.v;
@@ -561,20 +764,24 @@
                 faderBody.appendChild(tr);
             });
 
-            const tbody = document.getElementById('actionCcTableBody');
-            PROTOCOL_ACTION_CC.forEach(row => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td class="cc-num">${row.cc}</td><td>${row.key}</td><td>${row.behavior}</td>`;
-                tbody.appendChild(tr);
+            Object.entries(ACTION_CC_TABLE_IDS).forEach(([group, tableId]) => {
+                const tbody = document.getElementById(tableId);
+                PROTOCOL_ACTION_CC.filter(row => row.group === group).forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td class="cc-num">${row.cc}</td><td>${row.key}</td><td>${row.behavior}</td>`;
+                    tbody.appendChild(tr);
+                });
             });
 
-            const bindingRoot = document.getElementById('bindingFields');
-            BINDING_META.forEach(m => {
-                const card = document.createElement('div');
-                card.className = 'binding-card';
-                card.dataset.bindingKey = m.key;
-                card.innerHTML = `<div class="binding-title">${m.label}</div><div class="binding-fields"></div>`;
-                bindingRoot.appendChild(card);
+            Object.entries(BINDING_ROOT_IDS).forEach(([group, rootId]) => {
+                const bindingRoot = document.getElementById(rootId);
+                BINDING_META.filter(m => m.group === group).forEach(m => {
+                    const card = document.createElement('div');
+                    card.className = 'binding-card';
+                    card.dataset.bindingKey = m.key;
+                    card.innerHTML = `<div class="binding-title">${m.label}</div><div class="binding-fields"></div>`;
+                    bindingRoot.appendChild(card);
+                });
             });
 
             const sliderBars = document.getElementById('sliderBars');
@@ -656,36 +863,59 @@
             }
         }
 
+        function bindingMetaFor(key) {
+            return BINDING_META.find(m => m.key === key);
+        }
+
         function renderBindingCard(key, binding) {
             const card = document.querySelector(`[data-binding-key="${key}"]`);
+            const meta = bindingMetaFor(key);
+            const allowedTypes = meta?.types ?? ['double_tap', 'chord', 'hold'];
             const fields = card.querySelector('.binding-fields');
             fields.innerHTML = '';
-            if (!binding) binding = { type: 'double_tap', button: 0 };
+            if (!binding) binding = { type: allowedTypes[0], button: 0 };
+            if (!allowedTypes.includes(binding.type)) {
+                binding = { ...binding, type: allowedTypes[0] };
+            }
 
-            const typeSel = document.createElement('select');
-            typeSel.dataset.bindingPart = 'type';
-            ['double_tap', 'chord', 'hold'].forEach(t => {
-                const o = document.createElement('option');
-                o.value = t;
-                o.textContent = t;
-                if (binding.type === t) o.selected = true;
-                typeSel.appendChild(o);
-            });
-            const typeField = document.createElement('div');
-            typeField.className = 'field';
-            typeField.innerHTML = '<label>Type</label>';
-            typeField.appendChild(typeSel);
-            fields.appendChild(typeField);
+            const fixedType = allowedTypes.length === 1 ? allowedTypes[0] : null;
+            let typeSel = null;
+            if (fixedType) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.dataset.bindingPart = 'type';
+                hidden.value = fixedType;
+                fields.appendChild(hidden);
+                const typeField = document.createElement('div');
+                typeField.className = 'field binding-type-fixed';
+                typeField.innerHTML = `<label>Type</label><span class="binding-type-value">${fixedType}</span>`;
+                fields.appendChild(typeField);
+            } else {
+                typeSel = document.createElement('select');
+                typeSel.dataset.bindingPart = 'type';
+                allowedTypes.forEach(t => {
+                    const o = document.createElement('option');
+                    o.value = t;
+                    o.textContent = t;
+                    if (binding.type === t) o.selected = true;
+                    typeSel.appendChild(o);
+                });
+                const typeField = document.createElement('div');
+                typeField.className = 'field';
+                typeField.innerHTML = '<label>Type</label>';
+                typeField.appendChild(typeSel);
+                fields.appendChild(typeField);
+            }
 
             const rebuild = () => {
-                const t = typeSel.value;
+                const t = fixedType ?? typeSel.value;
                 fields.querySelectorAll('[data-binding-extra]').forEach(el => el.remove());
                 if (t === 'double_tap' || t === 'hold') {
                     const f = document.createElement('div');
                     f.className = 'field';
                     f.dataset.bindingExtra = '1';
                     f.innerHTML = '<label>Button</label>';
-                    f.appendChild(buttonSelect('b_' + key + '_btn', binding.button ?? 0));
+                    f.appendChild(buttonSelect('b_' + key + '_btn', binding.button ?? 0, key, 'button'));
                     fields.appendChild(f);
                 } else if (t === 'chord') {
                     ['hold', 'tap'].forEach(part => {
@@ -693,18 +923,373 @@
                         f.className = 'field';
                         f.dataset.bindingExtra = '1';
                         f.innerHTML = `<label>${part}</label>`;
-                        f.appendChild(buttonSelect('b_' + key + '_' + part, binding[part] ?? 0));
+                        f.appendChild(buttonSelect('b_' + key + '_' + part, binding[part] ?? 0, key, part));
                         fields.appendChild(f);
                     });
                 }
             };
-            typeSel.addEventListener('change', rebuild);
+            if (typeSel) typeSel.addEventListener('change', () => { rebuild(); updateBindingValidationUI(); });
             rebuild();
+            wireBindingValidationForCard(key);
+        }
+
+        function slotLabel(slotId) {
+            if (slotId === 'fine') return 'Fine modifier';
+            return bindingMetaFor(slotId)?.label ?? slotId;
+        }
+
+        function buttonSelectEl(slotId) {
+            if (slotId === 'fine') return document.getElementById('fineModifierBtn');
+            const card = document.querySelector(`[data-binding-key="${slotId}"]`);
+            if (!card) return null;
+            const type = card.querySelector('[data-binding-part="type"]')?.value;
+            if (type !== 'double_tap' && type !== 'hold') return null;
+            return card.querySelector('[data-binding-extra] select');
+        }
+
+        function slotCardEl(slotId) {
+            if (slotId === 'fine') return document.getElementById('fineModifierCard');
+            return document.querySelector(`[data-binding-key="${slotId}"]`);
+        }
+
+        function readButtonSlot(slotId) {
+            const sel = buttonSelectEl(slotId);
+            return sel ? parseInt(sel.value, 10) : null;
+        }
+
+        function writeButtonSlot(slotId, btn) {
+            const sel = buttonSelectEl(slotId);
+            if (sel) {
+                sel.value = String(btn);
+                sel.dataset.swapPrev = String(btn);
+            }
+        }
+
+        function readChordPair(bindingKey) {
+            const card = document.querySelector(`[data-binding-key="${bindingKey}"]`);
+            if (!card) return null;
+            const selects = card.querySelectorAll('[data-binding-extra] select');
+            if (selects.length < 2) return null;
+            return {
+                hold: parseInt(selects[0].value, 10),
+                tap: parseInt(selects[1].value, 10),
+            };
+        }
+
+        function writeChordPair(bindingKey, pair) {
+            const card = document.querySelector(`[data-binding-key="${bindingKey}"]`);
+            if (!card) return;
+            const selects = card.querySelectorAll('[data-binding-extra] select');
+            if (selects.length < 2) return;
+            selects[0].value = String(pair.hold);
+            selects[1].value = String(pair.tap);
+            selects[0].dataset.swapPrevHold = String(pair.hold);
+            selects[0].dataset.swapPrevTap = String(pair.tap);
+            selects[1].dataset.swapPrevHold = String(pair.hold);
+            selects[1].dataset.swapPrevTap = String(pair.tap);
+        }
+
+        function chordPairLabel(pair) {
+            return `hold ${pair.hold + 1}, tap ${pair.tap + 1}`;
+        }
+
+        function buttonScopesForSlot(slotId) {
+            return CONFLICT_SCOPES.filter(
+                s => s.kind === 'button' && s.slotIds().includes(slotId)
+            ).map(s => s.id);
+        }
+
+        function chordScopesForKey(bindingKey) {
+            return CONFLICT_SCOPES.filter(
+                s => s.kind === 'chord' && s.bindingKeys().includes(bindingKey)
+            ).map(s => s.id);
+        }
+
+        const HOLD_BINDING_IDS = () =>
+            BINDING_META.filter(m => m.types.includes('hold')).map(m => m.key);
+
+        function resolveFineCrossSwap(changedId, newBtn, oldBtn) {
+            const swapped = [];
+            if (changedId === 'fine') {
+                for (const id of HOLD_BINDING_IDS()) {
+                    if (readButtonSlot(id) === newBtn) {
+                        writeButtonSlot(id, oldBtn);
+                        swapped.push(slotLabel(id));
+                    }
+                }
+            } else if (HOLD_BINDING_IDS().includes(changedId)) {
+                if (readButtonSlot('fine') === newBtn) {
+                    writeButtonSlot('fine', oldBtn);
+                    swapped.push(slotLabel('fine'));
+                }
+            }
+            return swapped;
+        }
+
+        function analyzeFineCross(scope) {
+            const fine = readButtonSlot('fine');
+            const conflicts = [];
+            if (fine === null) return { fine, conflicts };
+            for (const id of scope.holdIds()) {
+                if (readButtonSlot(id) === fine) conflicts.push(id);
+            }
+            return { fine, conflicts };
+        }
+
+        function resolveButtonScopeSwap(scopeId, changedId, newBtn, oldBtn) {
+            const scope = CONFLICT_SCOPES.find(s => s.id === scopeId);
+            if (!scope) return [];
+            const swapped = [];
+            for (const id of scope.slotIds()) {
+                if (id === changedId) continue;
+                if (readButtonSlot(id) === newBtn) {
+                    writeButtonSlot(id, oldBtn);
+                    swapped.push(slotLabel(id));
+                }
+            }
+            return swapped;
+        }
+
+        function resolveChordScopeSwap(scopeId, changedKey, newPair, oldPair) {
+            const scope = CONFLICT_SCOPES.find(s => s.id === scopeId);
+            if (!scope) return [];
+            const swapped = [];
+            for (const key of scope.bindingKeys()) {
+                if (key === changedKey) continue;
+                const other = readChordPair(key);
+                if (!other) continue;
+                if (other.hold === newPair.hold && other.tap === newPair.tap) {
+                    writeChordPair(key, oldPair);
+                    swapped.push(slotLabel(key));
+                }
+            }
+            return swapped;
+        }
+
+        function wireButtonSelect(selectEl, slotId) {
+            if (!selectEl || selectEl.dataset.bindingValidationWire === '1') return;
+            selectEl.dataset.bindingValidationWire = '1';
+            selectEl.addEventListener('focus', () => {
+                selectEl.dataset.swapPrev = selectEl.value;
+            });
+            selectEl.addEventListener('change', () => {
+                const oldBtn = parseInt(selectEl.dataset.swapPrev ?? selectEl.value, 10);
+                const newBtn = parseInt(selectEl.value, 10);
+                const swapped = new Set();
+                for (const scopeId of buttonScopesForSlot(slotId)) {
+                    resolveButtonScopeSwap(scopeId, slotId, newBtn, oldBtn).forEach(n => swapped.add(n));
+                }
+                if (slotId === 'fine' || HOLD_BINDING_IDS().includes(slotId)) {
+                    resolveFineCrossSwap(slotId, newBtn, oldBtn).forEach(n => swapped.add(n));
+                }
+                selectEl.dataset.swapPrev = selectEl.value;
+                updateBindingValidationUI();
+                if (swapped.size) {
+                    showToast(
+                        [...swapped].map(n => `${n} → button ${oldBtn + 1}`).join(' · '),
+                        'success',
+                        4500
+                    );
+                }
+            });
+        }
+
+        function wireChordBinding(bindingKey) {
+            const card = document.querySelector(`[data-binding-key="${bindingKey}"]`);
+            if (!card) return;
+            const selects = card.querySelectorAll('[data-binding-extra] select');
+            selects.forEach((sel, idx) => {
+                const part = idx === 0 ? 'hold' : 'tap';
+                sel.dataset.bindingKey = bindingKey;
+                sel.dataset.bindingPart = part;
+                if (sel.dataset.bindingValidationWire === '1') return;
+                sel.dataset.bindingValidationWire = '1';
+                sel.addEventListener('focus', () => {
+                    const pair = readChordPair(bindingKey);
+                    if (pair) {
+                        sel.dataset.swapPrevHold = String(pair.hold);
+                        sel.dataset.swapPrevTap = String(pair.tap);
+                    }
+                });
+                sel.addEventListener('change', () => {
+                    const oldPair = {
+                        hold: parseInt(sel.dataset.swapPrevHold ?? '0', 10),
+                        tap: parseInt(sel.dataset.swapPrevTap ?? '0', 10),
+                    };
+                    const newPair = readChordPair(bindingKey);
+                    if (!newPair) return;
+                    const swapped = new Set();
+                    for (const scopeId of chordScopesForKey(bindingKey)) {
+                        resolveChordScopeSwap(scopeId, bindingKey, newPair, oldPair).forEach(n => swapped.add(n));
+                    }
+                    sel.dataset.swapPrevHold = String(newPair.hold);
+                    sel.dataset.swapPrevTap = String(newPair.tap);
+                    updateBindingValidationUI();
+                    if (swapped.size) {
+                        showToast(
+                            [...swapped].map(n => `${n} → ${chordPairLabel(oldPair)}`).join(' · '),
+                            'success',
+                            4500
+                        );
+                    }
+                });
+            });
+        }
+
+        function wireBindingValidationForCard(bindingKey) {
+            const card = document.querySelector(`[data-binding-key="${bindingKey}"]`);
+            if (!card) return;
+            const type = card.querySelector('[data-binding-part="type"]')?.value;
+            if (type === 'double_tap' || type === 'hold') {
+                wireButtonSelect(card.querySelector('[data-binding-extra] select'), bindingKey);
+            } else if (type === 'chord') {
+                wireChordBinding(bindingKey);
+            }
+        }
+
+        function wireAllBindingValidation() {
+            wireButtonSelect(document.getElementById('fineModifierBtn'), 'fine');
+            BINDING_META.forEach(m => wireBindingValidationForCard(m.key));
+        }
+
+        function analyzeButtonScope(scope) {
+            const byButton = new Map();
+            for (const id of scope.slotIds()) {
+                const v = readButtonSlot(id);
+                if (v === null) continue;
+                if (!byButton.has(v)) byButton.set(v, []);
+                byButton.get(v).push(id);
+            }
+            const dupButtons = new Set();
+            for (const [btn, ids] of byButton) {
+                if (ids.length > 1) dupButtons.add(btn);
+            }
+            return { byButton, dupButtons };
+        }
+
+        function analyzeChordScope(scope) {
+            const byPair = new Map();
+            const selfTap = new Set();
+            for (const key of scope.bindingKeys()) {
+                const pair = readChordPair(key);
+                if (!pair) continue;
+                if (pair.hold === pair.tap) selfTap.add(key);
+                const pk = `${pair.hold},${pair.tap}`;
+                if (!byPair.has(pk)) byPair.set(pk, []);
+                byPair.get(pk).push(key);
+            }
+            const dupPairs = new Set();
+            for (const [pk, keys] of byPair) {
+                if (keys.length > 1) dupPairs.add(pk);
+            }
+            return { byPair, dupPairs, selfTap };
+        }
+
+        function updateBindingValidationUI() {
+            document.querySelectorAll('.binding-conflict').forEach(el => el.classList.remove('binding-conflict'));
+            document.querySelectorAll('.input-conflict').forEach(el => el.classList.remove('input-conflict'));
+
+            for (const scope of CONFLICT_SCOPES) {
+                const warn = document.getElementById(scope.warnId);
+                if (scope.kind === 'fine_cross') {
+                    const { fine, conflicts } = analyzeFineCross(scope);
+                    if (fine !== null) {
+                        const fineCard = slotCardEl('fine');
+                        const fineSel = buttonSelectEl('fine');
+                        const fineConflict = conflicts.length > 0;
+                        if (fineCard) fineCard.classList.toggle('binding-conflict', fineConflict);
+                        if (fineSel) fineSel.classList.toggle('input-conflict', fineConflict);
+                        for (const id of conflicts) {
+                            const card = slotCardEl(id);
+                            const sel = buttonSelectEl(id);
+                            if (card) card.classList.toggle('binding-conflict', true);
+                            if (sel) sel.classList.toggle('input-conflict', true);
+                        }
+                    }
+                    if (warn) {
+                        if (conflicts.length) {
+                            const names = conflicts.map(slotLabel);
+                            warn.textContent =
+                                `${scope.label}: button ${fine + 1} is used by fine modifier and ${names.join(', ')}.`;
+                            warn.classList.add('show');
+                        } else {
+                            warn.classList.remove('show');
+                        }
+                    }
+                } else if (scope.kind === 'button') {
+                    const { byButton, dupButtons } = analyzeButtonScope(scope);
+                    for (const id of scope.slotIds()) {
+                        const v = readButtonSlot(id);
+                        const conflict = v !== null && dupButtons.has(v);
+                        const card = slotCardEl(id);
+                        const sel = buttonSelectEl(id);
+                        if (card) card.classList.toggle('binding-conflict', conflict);
+                        if (sel) sel.classList.toggle('input-conflict', conflict);
+                    }
+                    if (warn) {
+                        if (dupButtons.size) {
+                            const parts = [];
+                            for (const btn of dupButtons) {
+                                const names = (byButton.get(btn) || []).map(slotLabel);
+                                parts.push(`button ${btn + 1}: ${names.join(', ')}`);
+                            }
+                            warn.textContent =
+                                `${scope.label}: each control needs a different button (${parts.join(' · ')}).`;
+                            warn.classList.add('show');
+                        } else {
+                            warn.classList.remove('show');
+                        }
+                    }
+                } else {
+                    const { byPair, dupPairs, selfTap } = analyzeChordScope(scope);
+                    for (const key of scope.bindingKeys()) {
+                        const pair = readChordPair(key);
+                        const card = document.querySelector(`[data-binding-key="${key}"]`);
+                        const pk = pair ? `${pair.hold},${pair.tap}` : '';
+                        const conflict = selfTap.has(key) || (pk && dupPairs.has(pk));
+                        if (card) card.classList.toggle('binding-conflict', conflict);
+                        const selects = card?.querySelectorAll('[data-binding-extra] select') ?? [];
+                        selects.forEach(sel => sel.classList.toggle('input-conflict', conflict));
+                    }
+                    if (warn) {
+                        const parts = [];
+                        for (const pk of dupPairs) {
+                            const names = (byPair.get(pk) || []).map(slotLabel);
+                            const [h, t] = pk.split(',').map(n => parseInt(n, 10) + 1);
+                            parts.push(`hold ${h} + tap ${t}: ${names.join(', ')}`);
+                        }
+                        for (const key of selfTap) {
+                            parts.push(`${slotLabel(key)}: hold and tap cannot be the same button`);
+                        }
+                        if (parts.length) {
+                            warn.textContent = `${scope.label}: ${parts.join(' · ')}.`;
+                            warn.classList.add('show');
+                        } else {
+                            warn.classList.remove('show');
+                        }
+                    }
+                }
+            }
+        }
+
+        function allBindingsValid() {
+            for (const scope of CONFLICT_SCOPES) {
+                if (scope.kind === 'fine_cross') {
+                    if (analyzeFineCross(scope).conflicts.length) return false;
+                } else if (scope.kind === 'button') {
+                    if (analyzeButtonScope(scope).dupButtons.size) return false;
+                } else {
+                    const { dupPairs, selfTap } = analyzeChordScope(scope);
+                    if (dupPairs.size || selfTap.size) return false;
+                }
+            }
+            return true;
         }
 
         function populateForm(data) {
             settings = JSON.parse(JSON.stringify(data));
             migrateLegacyModeKeys(settings);
+            migrateLegacyOverlayBindings(settings);
             if (!settings.USER_CC_GRID) settings.USER_CC_GRID = defaultUserCcGrid();
 
             document.getElementById('midiChannel').value = settings.MIDI_CHANNEL ?? 1;
@@ -736,6 +1321,8 @@
             BINDING_META.forEach(m => {
                 renderBindingCard(m.key, (settings.BINDINGS || {})[m.key]);
             });
+            wireAllBindingValidation();
+            updateBindingValidationUI();
 
             renderUserCcGrid();
             loadingMsg.style.display = 'none';
@@ -906,6 +1493,11 @@
         document.getElementById('reloadBtn').addEventListener('click', () => sendCommand('GET_SETTINGS'));
         settingsForm.addEventListener('submit', async e => {
             e.preventDefault();
+            updateBindingValidationUI();
+            if (!allBindingsValid()) {
+                showToast('Fix conflicting button assignments before saving.', 'error');
+                return;
+            }
             const data = collectFormData();
             await sendCommand('SET_SETTINGS|' + JSON.stringify(data));
         });
