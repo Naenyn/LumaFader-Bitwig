@@ -21,6 +21,7 @@ import com.bitwig.extension.controller.api.NoteInput;
 import com.bitwig.extension.controller.api.Parameter;
 import com.bitwig.extension.controller.api.Send;
 import com.bitwig.extension.controller.api.SettableColorValue;
+import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.TrackBank;
 
 /**
@@ -47,6 +48,14 @@ public class LumaFaderExtension extends ControllerExtension
    private static final int NAV_PREV_TRACK_CC = 41;
    private static final int NAV_NEXT_DEVICE_CC = 42;
    private static final int NAV_PREV_DEVICE_CC = 43;
+   private static final int NAV_NEXT_TRACK_PAGE_CC = 44;
+   private static final int NAV_PREV_TRACK_PAGE_CC = 45;
+   private static final int NAV_NEXT_SEND_CC = 46;
+   private static final int NAV_PREV_SEND_CC = 47;
+   /** Outside FADER_CC_SENDS (28–31) and FADER_CC_UTILITY (32–35). */
+   private static final int WORKSPACE_FOCUS_ACTION_CC = 60;
+   private static final int WORKSPACE_FOUR_TRACK_ACTION_CC = 61;
+   private static final int WORKSPACE_USER_ACTION_CC = 62;
    private static final int UTILITY_LAST_TOUCHED = 0;
    private static final int UTILITY_RESERVED = 1;
    private static final int UTILITY_PAN = 2;
@@ -54,24 +63,40 @@ public class LumaFaderExtension extends ControllerExtension
    private static final int REMOTE_COUNT = 8;
    private static final int FADER_COUNT = 4;
    private static final int TRACK_SEND_COUNT = 4;
+   /** Sends per track in {@link #flatTrackBank} (send-page nav); Focus cursor uses {@link #TRACK_SEND_COUNT}. */
+   private static final int FLAT_TRACK_BANK_SEND_COUNT = 16;
    private static final int LED_UPDATE_DEBOUNCE_MS = 25;
    /** Let cursor track/device settle after selectNext/Previous before reading exists(). */
    private static final int DEVICE_SELECT_DELAY_MS = 100;
    private static final int DEVICE_SELECT_MAX_ATTEMPTS = 3;
    private static final int MAIN_TRACK_BANK_SIZE = 256;
+   /** Page-sized bank for Four-Track; drives Bitwig's track-window highlight. */
+   private static final int FOUR_TRACK_BANK_SIZE = 4;
+   /**
+    * Non-zero scene count so {@link TrackBank#setShouldShowClipLauncherFeedback} can draw the
+    * mixer track window. Slots are never bound or launched — indication only.
+    */
+   private static final int FOUR_TRACK_SCENE_COUNT = 8;
    private static final int TRACK_DEVICE_BANK_SIZE = 64;
    /** How many bank slots to markInterested for exists() scans. */
    private static final int TRACK_DEVICE_BANK_MARK = 16;
-
    private static final int DISPLAY_REMOTES = 0;
    private static final int DISPLAY_REMOTES_5_8 = 1;
    private static final int DISPLAY_SENDS = 2;
    private static final int DISPLAY_UTILITY = 3;
+   /** Four-Track overlay 1: volume (reuses overlay_1 / CC 24–27 bank). */
+   private static final int DISPLAY_FOUR_VOLUME = 1;
+   /** Four-Track overlay 2: pan (reuses overlay_2 / CC 28–31 bank). */
+   private static final int DISPLAY_FOUR_PAN = 2;
 
    private ControllerHost host;
+   private int workspaceId = SysexProtocol.WORKSPACE_FOCUS;
+   private final FourTrackViewport fourTrackViewport = new FourTrackViewport();
    private CursorTrack cursorTrack;
-   /** Main + FX + master; follows {@link #cursorTrack} in the arranger. */
+   /** Scans the flat track list for Four-Track visibility (not shown in the UI). */
    private TrackBank flatTrackBank;
+   /** Four visible mixer tracks; scroll + indication draw the arranger track window. */
+   private TrackBank fourTrackBank;
    private PinnableCursorDevice cursorDevice;
    private LastClickedParameter lastClicked;
    private Parameter lastTouchedParameter;
@@ -103,6 +128,10 @@ public class LumaFaderExtension extends ControllerExtension
    private static final int FLUSH_LED_INTERVAL_MS = 100;
    private static final int UTILITY_RAINBOW_ANIMATION_MS = 50;
    private boolean utilityRainbowAnimationRunning;
+   private boolean overlay1Held;
+   private boolean overlay2Held;
+   private boolean overlay3Held;
+   private boolean fineModifierHeld;
 
    protected LumaFaderExtension(
       final LumaFaderExtensionDefinition definition,
@@ -126,8 +155,13 @@ public class LumaFaderExtension extends ControllerExtension
          0,
          true);
       flatTrackBank =
-         host.createTrackBank(MAIN_TRACK_BANK_SIZE, TRACK_SEND_COUNT, 0, true);
-      flatTrackBank.followCursorTrack(cursorTrack);
+         host.createTrackBank(MAIN_TRACK_BANK_SIZE, FLAT_TRACK_BANK_SEND_COUNT, 0, true);
+      fourTrackBank =
+         host.createTrackBank(FOUR_TRACK_BANK_SIZE, 0, FOUR_TRACK_SCENE_COUNT, true);
+      fourTrackBank.scrollPosition().markInterested();
+      markFourTrackBankInterested();
+      markFlatTrackBankInterested();
+      attachFlatTrackBankObservers();
       cursorDevice = cursorTrack.createCursorDevice(
          "lumafader-device",
          "LumaFader Device",
@@ -162,8 +196,122 @@ public class LumaFaderExtension extends ControllerExtension
       host.scheduleTask(this::sendVisibleState, 200);
 
       host.println("LumaFader: CC 20–35 via onMidi; takeover ramp on overlay/fine release");
-      host.println("Navigation: ACTION_CC 40–43 chord pulses → track/device cursor");
+      host.println("Navigation: ACTION_CC 40–47 chord pulses (workspace-dependent)");
+      host.println("Workspaces: ACTION_CC 60–62 double-tap");
       host.println("LED feedback: SysEx visible state (0x10)");
+   }
+
+   private boolean isFocusWorkspace()
+   {
+      return workspaceId == SysexProtocol.WORKSPACE_FOCUS;
+   }
+
+   private boolean isFourTrackWorkspace()
+   {
+      return workspaceId == SysexProtocol.WORKSPACE_FOUR_TRACK;
+   }
+
+   /**
+    * Four-Track reads these on every bank slot; {@code markInterested()} is only legal in
+    * {@link #init()}.
+    */
+   private void markFourTrackBankInterested()
+   {
+      for (int i = 0; i < FOUR_TRACK_BANK_SIZE; i++)
+      {
+         BitwigChannels.trackAt(fourTrackBank, i).exists().markInterested();
+      }
+   }
+
+   private void markFlatTrackBankInterested()
+   {
+      for (int i = 0; i < MAIN_TRACK_BANK_SIZE; i++)
+      {
+         final Track track = BitwigChannels.trackAt(flatTrackBank, i);
+         track.exists().markInterested();
+         track.isActivated().markInterested();
+         track.position().markInterested();
+         track.color().markInterested();
+         track.volume().markInterested();
+         track.pan().markInterested();
+
+         for (int s = 0; s < FLAT_TRACK_BANK_SEND_COUNT; s++)
+         {
+            final Send send = BitwigChannels.sendAt(track, s);
+            send.exists().markInterested();
+            send.name().markInterested();
+            send.isEnabled().markInterested();
+            send.value().markInterested();
+            send.sendChannelColor().markInterested();
+         }
+      }
+   }
+
+   private void attachFlatTrackBankObservers()
+   {
+      for (int i = 0; i < MAIN_TRACK_BANK_SIZE; i++)
+      {
+         final Track track = BitwigChannels.trackAt(flatTrackBank, i);
+         track.isActivated().addValueObserver(
+            (BooleanValueChangedCallback) activated -> onFlatTrackBankDataChanged());
+         track.volume().value().addValueObserver(
+            (DoubleValueChangedCallback) value -> onFlatTrackBankDataChanged());
+         track.pan().value().addValueObserver(
+            (DoubleValueChangedCallback) value -> onFlatTrackBankDataChanged());
+
+         for (int s = 0; s < FLAT_TRACK_BANK_SEND_COUNT; s++)
+         {
+            final Send send = BitwigChannels.sendAt(track, s);
+            send.value().addValueObserver(
+               (DoubleValueChangedCallback) value -> onFlatTrackBankDataChanged());
+            send.isEnabled().addValueObserver(
+               (BooleanValueChangedCallback) enabled -> onFlatTrackBankDataChanged());
+         }
+      }
+   }
+
+   private void onFlatTrackBankDataChanged()
+   {
+      if (!isFourTrackWorkspace())
+      {
+         return;
+      }
+      fourTrackViewport.rebuildVisibleTracks(flatTrackBank, MAIN_TRACK_BANK_SIZE);
+      syncFourTrackBankToViewport();
+      scheduleVisibleStateUpdate();
+   }
+
+   /**
+    * Bitwig mixer highlight for the current Four-Track page. Does not follow UI track selection
+    * after enter; does not launch or edit clips.
+    */
+   private void setFourTrackWindowIndication(final boolean enable)
+   {
+      if (fourTrackBank == null)
+      {
+         return;
+      }
+      fourTrackBank.setShouldShowClipLauncherFeedback(enable);
+   }
+
+   private void enableFourTrackWindowIndication()
+   {
+      setFourTrackWindowIndication(true);
+      syncFourTrackBankToViewport();
+   }
+
+   /** Scroll the 4-track bank to the current Four-Track page (mixer tracks only, no clips). */
+   private void syncFourTrackBankToViewport()
+   {
+      if (fourTrackBank == null)
+      {
+         return;
+      }
+      final int position =
+         fourTrackViewport.scrollPositionForPage(flatTrackBank);
+      // API 6+: scrollPosition / scrollIntoView — not scrollToChannel / scrollToTrack.
+      fourTrackBank.scrollPosition().set(position);
+      fourTrackBank.scrollIntoView(position);
    }
 
    private void initRemoteParameters()
@@ -191,7 +339,7 @@ public class LumaFaderExtension extends ControllerExtension
    {
       for (int i = 0; i < FADER_COUNT; i++)
       {
-         sends[i] = cursorTrack.getSend(i);
+         sends[i] = BitwigChannels.sendAt(cursorTrack, i);
          sends[i].markInterested();
       }
    }
@@ -314,6 +462,7 @@ public class LumaFaderExtension extends ControllerExtension
       cursorTrack.exists().markInterested();
       cursorTrack.name().markInterested();
       cursorTrack.color().markInterested();
+      cursorTrack.position().markInterested();
       cursorTrack.exists().addValueObserver(
          (BooleanValueChangedCallback) exists -> scheduleVisibleStateUpdate());
    }
@@ -328,7 +477,8 @@ public class LumaFaderExtension extends ControllerExtension
       final int cc = msg.getData1();
       if (cc == FINE_MODIFIER_ACTION_CC)
       {
-         if (msg.getData2() >= 64)
+         fineModifierHeld = msg.getData2() >= 64;
+         if (fineModifierHeld)
          {
             faderTakeover.disarmAll();
          }
@@ -337,26 +487,37 @@ public class LumaFaderExtension extends ControllerExtension
          return;
       }
 
+      if (handleWorkspaceActionCc(cc, msg.getData2()))
+      {
+         return;
+      }
+
       if (cc == OVERLAY_1_ACTION_CC)
       {
-         setLedDisplayKind(msg.getData2() >= 64 ? DISPLAY_REMOTES_5_8 : DISPLAY_REMOTES);
+         setOverlayHeld(msg.getData2() >= 64, 1);
          return;
       }
 
       if (cc == OVERLAY_2_ACTION_CC)
       {
-         setLedDisplayKind(msg.getData2() >= 64 ? DISPLAY_SENDS : DISPLAY_REMOTES);
+         setOverlayHeld(msg.getData2() >= 64, 2);
          return;
       }
 
       if (cc == OVERLAY_3_ACTION_CC)
       {
-         setLedDisplayKind(msg.getData2() >= 64 ? DISPLAY_UTILITY : DISPLAY_REMOTES);
+         setOverlayHeld(msg.getData2() >= 64, 3);
          return;
       }
 
       if (handleNavActionCc(cc, msg.getData2()))
       {
+         return;
+      }
+
+      if (isFourTrackWorkspace())
+      {
+         onMidiFourTrackFader(cc, msg.getData2());
          return;
       }
 
@@ -401,8 +562,137 @@ public class LumaFaderExtension extends ControllerExtension
       }
    }
 
+   private void setOverlayHeld(final boolean held, final int overlayNumber)
+   {
+      if (overlayNumber == 1)
+      {
+         overlay1Held = held;
+      }
+      else if (overlayNumber == 2)
+      {
+         overlay2Held = held;
+      }
+      else
+      {
+         overlay3Held = held;
+      }
+
+      if (isFourTrackWorkspace())
+      {
+         if (overlayNumber == 1)
+         {
+            setLedDisplayKind(held ? DISPLAY_FOUR_VOLUME : DISPLAY_SENDS);
+         }
+         else if (overlayNumber == 2)
+         {
+            setLedDisplayKind(held ? DISPLAY_FOUR_PAN : DISPLAY_SENDS);
+         }
+         else
+         {
+            setLedDisplayKind(DISPLAY_SENDS);
+         }
+      }
+      else if (overlayNumber == 1)
+      {
+         setLedDisplayKind(held ? DISPLAY_REMOTES_5_8 : DISPLAY_REMOTES);
+      }
+      else if (overlayNumber == 2)
+      {
+         setLedDisplayKind(held ? DISPLAY_SENDS : DISPLAY_REMOTES);
+      }
+      else
+      {
+         setLedDisplayKind(held ? DISPLAY_UTILITY : DISPLAY_REMOTES);
+      }
+
+      if (held)
+      {
+         sendVisibleState(SysexProtocol.EDGE_NONE);
+      }
+      else
+      {
+         scheduleVisibleStateUpdate();
+      }
+   }
+
+   private boolean handleWorkspaceActionCc(final int cc, final int value)
+   {
+      if (value < 64)
+      {
+         return cc == WORKSPACE_FOCUS_ACTION_CC
+            || cc == WORKSPACE_FOUR_TRACK_ACTION_CC
+            || cc == WORKSPACE_USER_ACTION_CC;
+      }
+
+      switch (cc)
+      {
+         case WORKSPACE_FOCUS_ACTION_CC:
+            switchWorkspace(SysexProtocol.WORKSPACE_FOCUS);
+            return true;
+         case WORKSPACE_FOUR_TRACK_ACTION_CC:
+            switchWorkspace(SysexProtocol.WORKSPACE_FOUR_TRACK);
+            return true;
+         case WORKSPACE_USER_ACTION_CC:
+            switchWorkspace(SysexProtocol.WORKSPACE_USER);
+            return true;
+         default:
+            return false;
+      }
+   }
+
+   private void switchWorkspace(final int newWorkspaceId)
+   {
+      if (workspaceId == newWorkspaceId)
+      {
+         return;
+      }
+
+      final boolean leavingFourTrack = isFourTrackWorkspace();
+      workspaceId = newWorkspaceId;
+      utilityRainbowAnimationRunning = false;
+      overlay1Held = false;
+      overlay2Held = false;
+      overlay3Held = false;
+
+      if (leavingFourTrack && !isFourTrackWorkspace())
+      {
+         setFourTrackWindowIndication(false);
+      }
+
+      if (isFourTrackWorkspace())
+      {
+         ledDisplayKind = DISPLAY_SENDS;
+         fourTrackViewport.initPageAroundCursor(
+            flatTrackBank, cursorTrack, MAIN_TRACK_BANK_SIZE);
+         enableFourTrackWindowIndication();
+         host.scheduleTask(this::enableFourTrackWindowIndication, DEVICE_SELECT_DELAY_MS);
+      }
+
+      if (isFocusWorkspace())
+      {
+         ledDisplayKind = DISPLAY_REMOTES;
+         editingTrackRemotes = false;
+         host.scheduleTask(this::scheduleSelectFirstDeviceOnCursorTrack, DEVICE_SELECT_DELAY_MS);
+      }
+      else
+      {
+         ledDisplayKind = DISPLAY_REMOTES;
+      }
+
+      faderTakeover.disarmAll();
+      faderNavPickup.arm();
+      visibleStateSysex.sendWorkspaceChange(workspaceId);
+      armFaderTakeoverForCurrentLayer();
+      scheduleVisibleStateUpdate();
+   }
+
    private boolean handleNavActionCc(final int cc, final int value)
    {
+      if (isFourTrackWorkspace())
+      {
+         return handleFourTrackNavActionCc(cc, value);
+      }
+
       if (value < 64)
       {
          return cc == NAV_NEXT_TRACK_CC
@@ -428,6 +718,213 @@ public class LumaFaderExtension extends ControllerExtension
          default:
             return false;
       }
+   }
+
+   private boolean handleFourTrackNavActionCc(final int cc, final int value)
+   {
+      if (value < 64)
+      {
+         return cc == NAV_NEXT_TRACK_PAGE_CC
+            || cc == NAV_PREV_TRACK_PAGE_CC
+            || cc == NAV_NEXT_SEND_CC
+            || cc == NAV_PREV_SEND_CC;
+      }
+
+      switch (cc)
+      {
+         case NAV_NEXT_TRACK_PAGE_CC:
+            if (fourTrackViewport.navigatePage(1))
+            {
+               syncFourTrackBankToViewport();
+               onNavigationCompleted();
+            }
+            else
+            {
+               sendNavReject(SysexProtocol.EDGE_BOTTOM);
+            }
+            return true;
+
+         case NAV_PREV_TRACK_PAGE_CC:
+            if (fourTrackViewport.navigatePage(-1))
+            {
+               syncFourTrackBankToViewport();
+               onNavigationCompleted();
+            }
+            else
+            {
+               sendNavReject(SysexProtocol.EDGE_TOP);
+            }
+            return true;
+
+         case NAV_NEXT_SEND_CC:
+            if (fourTrackViewport.navigateSend(
+               flatTrackBank, MAIN_TRACK_BANK_SIZE, FLAT_TRACK_BANK_SEND_COUNT, 1))
+            {
+               onNavigationCompleted();
+            }
+            else
+            {
+               sendNavReject(SysexProtocol.EDGE_RIGHT);
+            }
+            return true;
+
+         case NAV_PREV_SEND_CC:
+            if (fourTrackViewport.navigateSend(
+               flatTrackBank, MAIN_TRACK_BANK_SIZE, FLAT_TRACK_BANK_SEND_COUNT, -1))
+            {
+               onNavigationCompleted();
+            }
+            else
+            {
+               sendNavReject(SysexProtocol.EDGE_LEFT);
+            }
+            return true;
+
+         default:
+            return false;
+      }
+   }
+
+   private void onMidiFourTrackFader(final int cc, final int incomingMidi7)
+   {
+      for (int i = 0; i < FADER_COUNT; i++)
+      {
+         if (cc == FADER_CCS_REMOTES_5_8[i])
+         {
+            applyFourTrackVolumeFaderValue(i, incomingMidi7);
+            setLedDisplayKind(DISPLAY_FOUR_VOLUME);
+            return;
+         }
+      }
+
+      for (int i = 0; i < FADER_COUNT; i++)
+      {
+         if (cc == FADER_CCS_SENDS[i])
+         {
+            applyFourTrackPanFaderValue(i, incomingMidi7);
+            setLedDisplayKind(DISPLAY_FOUR_PAN);
+            return;
+         }
+      }
+
+      for (int i = 0; i < FADER_COUNT; i++)
+      {
+         if (cc == FADER_CCS_REMOTES_1_4[i])
+         {
+            applyFourTrackSendFaderValue(i, incomingMidi7);
+            setLedDisplayKind(DISPLAY_SENDS);
+            return;
+         }
+      }
+   }
+
+   private void applyFourTrackSendFaderValue(final int slot, final int incomingMidi7)
+   {
+      final Send send = fourTrackViewport.sendAtSlot(flatTrackBank, slot);
+      applyFourTrackSendParameter(slot, send, incomingMidi7);
+   }
+
+   private void applyFourTrackSendParameter(
+      final int slot,
+      final Send send,
+      final int incomingMidi7)
+   {
+      if (send == null || !VisibleStateSysex.isSendSlotDefinedInProject(send))
+      {
+         return;
+      }
+
+      if (faderNavPickup.suppressApply(slot, incomingMidi7))
+      {
+         return;
+      }
+
+      final int midi7 = faderTakeover.resolve(slot, incomingMidi7);
+      if (midi7 == FaderTakeover.SUPPRESS)
+      {
+         return;
+      }
+
+      if (!send.isEnabled().get())
+      {
+         send.isEnabled().set(true);
+         host.scheduleTask(
+            () -> {
+               send.set(midi7, 128);
+               scheduleVisibleStateUpdate();
+            },
+            0);
+         return;
+      }
+
+      send.set(midi7, 128);
+      scheduleVisibleStateUpdate();
+   }
+
+   private void applyFourTrackVolumeFaderValue(final int slot, final int incomingMidi7)
+   {
+      final Track track = fourTrackViewport.trackAtSlot(flatTrackBank, slot);
+      if (track == null)
+      {
+         return;
+      }
+
+      if (faderNavPickup.suppressApply(slot, incomingMidi7))
+      {
+         return;
+      }
+
+      final int midi7 = faderTakeover.resolve(slot, incomingMidi7);
+      if (midi7 == FaderTakeover.SUPPRESS)
+      {
+         return;
+      }
+
+      track.volume().set(midi7, 128);
+      scheduleVisibleStateUpdate();
+   }
+
+   private void applyFourTrackPanFaderValue(final int slot, final int incomingMidi7)
+   {
+      final Track track = fourTrackViewport.trackAtSlot(flatTrackBank, slot);
+      if (track == null)
+      {
+         return;
+      }
+
+      if (faderNavPickup.suppressApply(slot, incomingMidi7))
+      {
+         return;
+      }
+
+      final int midi7 = faderTakeover.resolve(slot, incomingMidi7);
+      if (midi7 == FaderTakeover.SUPPRESS)
+      {
+         return;
+      }
+
+      applyPanParameter(track.pan(), midi7);
+      scheduleVisibleStateUpdate();
+   }
+
+   private void applyPanParameter(final Parameter pan, final int midi7)
+   {
+      final int current = VisibleStateSysex.parameterToMidi7(pan.value().get());
+      final boolean incomingNearCenter =
+         Math.abs(midi7 - SysexProtocol.PAN_CENTER_CC) <= SysexProtocol.PAN_DEADZONE_CC;
+      final boolean hostNearCenter =
+         Math.abs(current - SysexProtocol.PAN_CENTER_CC) <= SysexProtocol.PAN_DEADZONE_CC;
+
+      if (incomingNearCenter && hostNearCenter)
+      {
+         if (current != SysexProtocol.PAN_CENTER_CC)
+         {
+            pan.set(SysexProtocol.PAN_CENTER_CC, 128);
+         }
+         return;
+      }
+
+      pan.set(midi7, 128);
    }
 
    private void navigateTrack(final int direction)
@@ -1098,6 +1595,11 @@ public class LumaFaderExtension extends ControllerExtension
 
    private int hostMidi7ForDisplayedFader(final int faderIndex)
    {
+      if (isFourTrackWorkspace())
+      {
+         return hostMidi7ForFourTrackFader(faderIndex);
+      }
+
       if (ledDisplayKind == DISPLAY_SENDS)
       {
          final Send send = sends[faderIndex];
@@ -1150,6 +1652,37 @@ public class LumaFaderExtension extends ControllerExtension
          return 0;
       }
       return VisibleStateSysex.parameterToMidi7(parameter.value().get());
+   }
+
+   private int hostMidi7ForFourTrackFader(final int slot)
+   {
+      if (!fourTrackViewport.isSlotActive(slot))
+      {
+         return 0;
+      }
+
+      if (ledDisplayKind == DISPLAY_FOUR_VOLUME)
+      {
+         final Track track = fourTrackViewport.trackAtSlot(flatTrackBank, slot);
+         return VisibleStateSysex.parameterToMidi7(track.volume().value().get());
+      }
+
+      if (ledDisplayKind == DISPLAY_FOUR_PAN)
+      {
+         final Track track = fourTrackViewport.trackAtSlot(flatTrackBank, slot);
+         return VisibleStateSysex.parameterToMidi7(track.pan().value().get());
+      }
+
+      final Send send = fourTrackViewport.sendAtSlot(flatTrackBank, slot);
+      if (send == null || !VisibleStateSysex.isSendSlotDefinedInProject(send))
+      {
+         return 0;
+      }
+      if (!VisibleStateSysex.isSendActiveOnTrack(send))
+      {
+         return 0;
+      }
+      return VisibleStateSysex.parameterToMidi7(send.value().get());
    }
 
    private void updateUtilityRainbowAnimation(final boolean enable)
@@ -1220,7 +1753,31 @@ public class LumaFaderExtension extends ControllerExtension
       final int[][] faderColors = new int[FADER_COUNT][3];
       final int[][] buttonColors = new int[FADER_COUNT][3];
 
-      if (ledDisplayKind == DISPLAY_SENDS)
+      if (isFourTrackWorkspace())
+      {
+         fourTrackViewport.rebuildVisibleTracks(flatTrackBank, MAIN_TRACK_BANK_SIZE);
+         syncFourTrackBankToViewport();
+         if (ledDisplayKind == DISPLAY_FOUR_VOLUME)
+         {
+            fillFourTrackVolumeFaderState(faderModes, faderValues, faderColors, buttonColors);
+         }
+         else if (ledDisplayKind == DISPLAY_FOUR_PAN)
+         {
+            fillFourTrackPanFaderState(faderModes, faderValues, faderColors, buttonColors);
+         }
+         else
+         {
+            fillFourTrackSendFaderState(faderModes, faderValues, faderColors, buttonColors);
+         }
+      }
+      else if (workspaceId == SysexProtocol.WORKSPACE_USER)
+      {
+         for (int i = 0; i < FADER_COUNT; i++)
+         {
+            VisibleStateSysex.setInactiveFader(faderModes, faderValues, faderColors, i);
+         }
+      }
+      else if (ledDisplayKind == DISPLAY_SENDS)
       {
          fillSendFaderState(faderModes, faderValues, faderColors, buttonColors);
       }
@@ -1234,7 +1791,7 @@ public class LumaFaderExtension extends ControllerExtension
       }
 
       visibleStateSysex.send(
-         SysexProtocol.WORKSPACE_FOCUS,
+         workspaceId,
          sysexOverlayId(),
          editingTrackRemotes
             ? SysexProtocol.REMOTE_SCOPE_TRACK
@@ -1248,6 +1805,19 @@ public class LumaFaderExtension extends ControllerExtension
 
    private int sysexOverlayId()
    {
+      if (isFourTrackWorkspace())
+      {
+         if (ledDisplayKind == DISPLAY_FOUR_VOLUME)
+         {
+            return 1;
+         }
+         if (ledDisplayKind == DISPLAY_FOUR_PAN)
+         {
+            return 2;
+         }
+         return 0;
+      }
+
       if (ledDisplayKind == DISPLAY_REMOTES_5_8)
       {
          return 1;
@@ -1261,6 +1831,107 @@ public class LumaFaderExtension extends ControllerExtension
          return 3;
       }
       return 0;
+   }
+
+   private void fillFourTrackSendFaderState(
+      final int[] faderModes,
+      final int[] faderValues,
+      final int[][] faderColors,
+      final int[][] buttonColors)
+   {
+      for (int i = 0; i < FADER_COUNT; i++)
+      {
+         buttonColors[i][0] = 0;
+         buttonColors[i][1] = 0;
+         buttonColors[i][2] = 0;
+
+         if (!fourTrackViewport.isSlotActive(i))
+         {
+            VisibleStateSysex.setInactiveFader(faderModes, faderValues, faderColors, i);
+            continue;
+         }
+
+         final Track track = fourTrackViewport.trackAtSlot(flatTrackBank, i);
+         final Send send = fourTrackViewport.sendAtSlot(flatTrackBank, i);
+         if (track == null
+            || send == null
+            || !VisibleStateSysex.isSendSlotDefinedInProject(send))
+         {
+            VisibleStateSysex.setInactiveFader(faderModes, faderValues, faderColors, i);
+            continue;
+         }
+
+         final int[] rgb = midiRgbFromColorValue(track.color());
+         faderColors[i][0] = rgb[0];
+         faderColors[i][1] = rgb[1];
+         faderColors[i][2] = rgb[2];
+
+         if (!VisibleStateSysex.isSendActiveOnTrack(send))
+         {
+            faderModes[i] = SysexProtocol.FADER_MODE_STANDBY;
+            faderValues[i] = 0;
+            continue;
+         }
+
+         faderModes[i] = SysexProtocol.FADER_MODE_UNIPOLAR;
+         faderValues[i] = VisibleStateSysex.parameterToMidi7(send.value().get());
+      }
+   }
+
+   private void fillFourTrackVolumeFaderState(
+      final int[] faderModes,
+      final int[] faderValues,
+      final int[][] faderColors,
+      final int[][] buttonColors)
+   {
+      for (int i = 0; i < FADER_COUNT; i++)
+      {
+         buttonColors[i][0] = 0;
+         buttonColors[i][1] = 0;
+         buttonColors[i][2] = 0;
+
+         if (!fourTrackViewport.isSlotActive(i))
+         {
+            VisibleStateSysex.setInactiveFader(faderModes, faderValues, faderColors, i);
+            continue;
+         }
+
+         final Track track = fourTrackViewport.trackAtSlot(flatTrackBank, i);
+         final int[] rgb = midiRgbFromColorValue(track.color());
+         faderColors[i][0] = rgb[0];
+         faderColors[i][1] = rgb[1];
+         faderColors[i][2] = rgb[2];
+         faderModes[i] = SysexProtocol.FADER_MODE_UNIPOLAR;
+         faderValues[i] = VisibleStateSysex.parameterToMidi7(track.volume().value().get());
+      }
+   }
+
+   private void fillFourTrackPanFaderState(
+      final int[] faderModes,
+      final int[] faderValues,
+      final int[][] faderColors,
+      final int[][] buttonColors)
+   {
+      for (int i = 0; i < FADER_COUNT; i++)
+      {
+         buttonColors[i][0] = 0;
+         buttonColors[i][1] = 0;
+         buttonColors[i][2] = 0;
+
+         if (!fourTrackViewport.isSlotActive(i))
+         {
+            VisibleStateSysex.setInactiveFader(faderModes, faderValues, faderColors, i);
+            continue;
+         }
+
+         final Track track = fourTrackViewport.trackAtSlot(flatTrackBank, i);
+         final int[] rgb = midiRgbFromColorValue(track.color());
+         faderColors[i][0] = rgb[0];
+         faderColors[i][1] = rgb[1];
+         faderColors[i][2] = rgb[2];
+         faderModes[i] = SysexProtocol.FADER_MODE_PAN;
+         faderValues[i] = VisibleStateSysex.parameterToMidi7(track.pan().value().get());
+      }
    }
 
    private void fillUtilityFaderState(
@@ -1432,6 +2103,7 @@ public class LumaFaderExtension extends ControllerExtension
    public void exit()
    {
       utilityRainbowAnimationRunning = false;
+      setFourTrackWindowIndication(false);
       ((ControllerHost) getHost()).println("LumaFader exited");
    }
 

@@ -60,7 +60,12 @@ class GestureEngine:
                 continue
             hold_btn = self.buttons[hold_idx]
             tap_btn = self.buttons[tap_idx]
-            if hold_btn.hold_time > 0 and tap_btn.detected_new_press and not tap_btn.was_long_held:
+            if (
+                hold_btn.pressed
+                and tap_btn.detected_new_release
+                and not tap_btn.was_long_held
+                and tap_btn.last_press_duration <= cfg.CHORD_TAP_MAX_S
+            ):
                 gesture = self.GESTURE_MAP.get(name)
                 if gesture:
                     self._pending_gestures.append(gesture)

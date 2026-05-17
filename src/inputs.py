@@ -110,6 +110,7 @@ class BankButton:
         self._double_press_detected = False
         self.detected_new_release = False
         self.detected_new_press = False
+        self.last_press_duration = 0.0
 
     def update(self):
         self.button.update()
@@ -128,6 +129,7 @@ class BankButton:
             state_changed = True
             self.detected_new_press = True
         elif self.button.rose:
+            self.last_press_duration = current_time - self._last_press_time
             self._hold_time = 0
             state_changed = True
             self.detected_new_release = True

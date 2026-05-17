@@ -1,5 +1,9 @@
 # Timing
 DOUBLE_PRESS_TIME = 0.3
+# Overlay hold: short delay so double-tap workspace still works; much less than DOUBLE_PRESS_TIME.
+OVERLAY_HOLD_DELAY_S = 0.08
+# Nav chord tap: fire on release only if the tap button was down at most this long.
+CHORD_TAP_MAX_S = 0.25
 LONG_HOLD_THRESH_S = 0.5
 NAV_REJECT_FLASH_S = 0.15
 

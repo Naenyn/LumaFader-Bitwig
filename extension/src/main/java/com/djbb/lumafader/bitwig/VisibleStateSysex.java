@@ -66,6 +66,21 @@ final class VisibleStateSysex
       midiOut.sendSysexBytes(data);
    }
 
+   void sendWorkspaceChange(final int workspaceId)
+   {
+      final byte[] data =
+         new byte[] {
+            (byte) 0xF0,
+            (byte) SysexProtocol.MANUFACTURER_ID,
+            (byte) SysexProtocol.DEVICE_ID,
+            (byte) SysexProtocol.PROTOCOL_VERSION,
+            (byte) SysexProtocol.MSG_WORKSPACE_CHANGE,
+            (byte) workspaceId,
+            (byte) 0xF7,
+         };
+      midiOut.sendSysexBytes(data);
+   }
+
    static int parameterToMidi7(final double normalized)
    {
       return clampMidi7((int) Math.round(normalized * (MIDI_CC_RANGE - 1)));

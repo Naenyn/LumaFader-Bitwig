@@ -43,7 +43,7 @@ Fader CC bank switches locally on hold; absolute CCs are sent only when a fader 
 
 ### Gestures (planned, not sent yet)
 
-**Navigation chords** (firmware `ACTION_CC` pulse 127→0): hold button A, tap button B — `nav_next_track` hold 4 tap 1 (CC 40), `nav_prev_track` hold 1 tap 4 (CC 41), `nav_next_device` hold 3 tap 2 (CC 42), `nav_prev_device` hold 2 tap 3 (CC 43). Bitwig moves `cursorTrack` / `cursorDevice` one step (track nav also selects the first device on that track); at limit, SysEx `nav_reject_edge` flashes (track: top/bottom, device: left/right). After nav, firmware and extension **suppress fader MIDI → parameter writes** until each fader moves ≥2 CC (LEDs still update via SysEx).
+**Navigation chords** (firmware `ACTION_CC` pulse 127→0): hold button A, **quick-tap** button B (fires on B’s release if the tap was &lt;250 ms and A is still held; holding B down does not page). Examples: `nav_next_track` hold 4 tap 1 (CC 40), `nav_prev_track` hold 1 tap 4 (CC 41). At limit, SysEx `nav_reject_edge` flashes. After nav, fader MIDI is suppressed until each fader moves ≥2 CC (LEDs still update via SysEx).
 
 **Current outbound MIDI:** up to 4 absolute fader CCs (bank 20–23 or 24–27 depending on button 4).
 

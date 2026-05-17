@@ -11,6 +11,34 @@ _NAV_ACTIONS = frozenset(
         "nav_prev_track",
         "nav_next_device",
         "nav_prev_device",
+        "nav_next_track_page",
+        "nav_prev_track_page",
+        "nav_next_send",
+        "nav_prev_send",
+    }
+)
+_WORKSPACE_SWITCH_ACTIONS = frozenset(
+    {
+        "workspace_focus",
+        "workspace_four_track",
+        "workspace_user",
+    }
+)
+_FOCUS_NAV_ACTIONS = frozenset(
+    {
+        "nav_next_track",
+        "nav_prev_track",
+        "nav_next_device",
+        "nav_prev_device",
+        "scope_toggle",
+    }
+)
+_FOUR_TRACK_NAV_ACTIONS = frozenset(
+    {
+        "nav_next_track_page",
+        "nav_prev_track_page",
+        "nav_next_send",
+        "nav_prev_send",
     }
 )
 
@@ -59,19 +87,57 @@ class LumaFaderController:
 
     def process(self):
         pending_actions = self.gestures.update()
-        self._update_overlay_state()
         self._update_fine_state()
         self._send_gesture_actions(pending_actions)
+        self._update_overlay_state()
         self._send_fader_positions()
 
     def _send_gesture_actions(self, actions):
         """Momentary ACTION_CC pulses for chords / double-taps (not overlays)."""
+        if not actions:
+            return
+
+        pressed_count = sum(1 for button in self.buttons if button.pressed)
+        workspace_id = self.visible_state.workspace_id
+        if workspace_id == cfg.WORKSPACE_FOUR_TRACK:
+            allowed_nav = _FOUR_TRACK_NAV_ACTIONS
+        elif workspace_id == cfg.WORKSPACE_USER:
+            allowed_nav = frozenset()
+        else:
+            allowed_nav = _FOCUS_NAV_ACTIONS
+
         if any(name in _NAV_ACTIONS for name in actions):
             self._arm_nav_pickup()
+
+        if any(name in _WORKSPACE_SWITCH_ACTIONS for name in actions):
+            self._release_overlay_ccs()
+
         for name in actions:
             if settings.is_overlay_action(name):
                 continue
+            if name in _WORKSPACE_SWITCH_ACTIONS and pressed_count > 1:
+                continue
+            if name in _NAV_ACTIONS and name not in allowed_nav:
+                continue
             self.midi.send_action_pulse(settings.get_action_cc(name), self.channel)
+
+    def _release_overlay_ccs(self):
+        """Clear overlay held CCs before a workspace pulse (same physical buttons)."""
+        if self._overlay_remotes_5_8:
+            self._overlay_remotes_5_8 = False
+            self.midi.send_cc_held(
+                settings.get_action_cc("overlay_1"), False, self.channel
+            )
+        if self._overlay_sends:
+            self._overlay_sends = False
+            self.midi.send_cc_held(
+                settings.get_action_cc("overlay_2"), False, self.channel
+            )
+        if self._overlay_utility:
+            self._overlay_utility = False
+            self.midi.send_cc_held(
+                settings.get_action_cc("overlay_3"), False, self.channel
+            )
 
     def _arm_nav_pickup(self):
         """Do not emit fader CC until moved — nav chords often hold overlay buttons."""

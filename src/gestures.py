@@ -1,3 +1,4 @@
+import constants as cfg
 from settings import settings
 
 
@@ -36,16 +37,28 @@ class GestureEngine:
                 continue
             hold_btn = self.buttons[hold_idx]
             tap_btn = self.buttons[tap_idx]
-            if hold_btn.hold_time > 0 and tap_btn.detected_new_press and not tap_btn.was_long_held:
+            # Fire on short tap *release* while hold is still down (not on initial press).
+            if (
+                hold_btn.pressed
+                and tap_btn.detected_new_release
+                and not tap_btn.was_long_held
+                and tap_btn.last_press_duration <= cfg.CHORD_TAP_MAX_S
+            ):
                 self._pending_actions.append(name)
 
     def _detect_overlay_holds(self):
+        """Hold overlays after a short press — not the full double-tap window (0.3s)."""
         active = set()
         for name in settings.OVERLAY_ACTIONS:
             binding = settings.get_binding(name)
             if not binding or binding.get("type") != "hold":
                 continue
             btn_idx = binding.get("button", -1)
-            if 0 <= btn_idx < len(self.buttons) and self.buttons[btn_idx].pressed:
+            if btn_idx < 0 or btn_idx >= len(self.buttons):
+                continue
+            button = self.buttons[btn_idx]
+            if button.was_double_pressed:
+                continue
+            if button.pressed and button.hold_time >= cfg.OVERLAY_HOLD_DELAY_S:
                 active.add(name)
         return active

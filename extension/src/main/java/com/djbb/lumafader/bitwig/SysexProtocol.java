@@ -12,6 +12,8 @@ final class SysexProtocol
    static final int MSG_SCOPE_CHANGE = 0x12;
 
    static final int WORKSPACE_FOCUS = 0;
+   static final int WORKSPACE_FOUR_TRACK = 1;
+   static final int WORKSPACE_USER = 2;
    static final int REMOTE_SCOPE_DEVICE = 0;
    static final int REMOTE_SCOPE_TRACK = 1;
 

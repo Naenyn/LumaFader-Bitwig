@@ -42,13 +42,37 @@ Optional: `USB_DRIVE_AT_BOOT: true` in `settings.json` may expose **LUMAFADER** 
 ## Status
 
 - **Firmware:** Bitwig mode — absolute fader CCs, overlay banks, gesture/action CCs, SysEx LEDs, USB MIDI only.
-- **Extension:** **Focus workspace** implemented (see below). Four-track and user workspaces are not implemented in the extension yet. Build with `extension/build.zsh`; install `extension/build/LumaFader.bwextension` into Bitwig’s Extensions folder.
+- **Extension:** **Focus** (workspace 1, blue) and **Four-Track** (workspace 2, green) are implemented. **User** (workspace 3, red) switches the indicator only. Build with `extension/build.zsh`; install `extension/build/LumaFader.bwextension` into Bitwig’s Extensions folder.
+
+## Workspaces (overview)
+
+| Button (double-tap) | Workspace | Indicator | Role |
+|---------------------|-----------|-----------|------|
+| 4 (top) | Focus | Blue | One track + device chain; follows Bitwig selection |
+| 3 | Four-Track | Green | Four mixer tracks per page; does not follow selection after enter |
+| 2 | User | Red | Placeholder (no fader mapping yet) |
+
+Workspace switches use **ACTION_CC** pulses on CC **60–62** (see [docs/PROTOCOL.md](docs/PROTOCOL.md)). Overlay holds use CC **50–52**; they engage after a short press (~80 ms) so the same buttons can still double-tap for workspace changes.
+
+### Navigation chords (both workspaces)
+
+Chords fire on a **quick tap** of the second button: the tap must release within **250 ms**, the hold button must still be down, and a long hold (≥500 ms) on the tap button does not count. This lets you hold button 1 (fine modifier) or hold an overlay button without accidentally paging.
+
+Example: holding button 4 for volume and pressing button 1 for fine control does **not** change the Four-Track page; a deliberate tap of button 1 while holding 4 does.
 
 ## Focus workspace
 
 Focus is the default Bitwig mode for detailed editing on **one track at a time**. The extension follows Bitwig’s **cursor track** and **cursor device**; faders and navigation move that selection. The workspace indicator LED (between faders B and C) is **blue**.
 
-Double-tap **button 1** (bottom) to enter Focus from another workspace (when those are wired up). Default bindings are in `src/settings.json`; only the gesture→CC mapping is configurable there — parameter meaning is fixed in the extension.
+**Workspace double-taps** (see `src/settings.json`):
+
+| Button | Workspace |
+|--------|-----------|
+| 4 (top) | Focus (blue indicator) |
+| 3 | Four-Track (green) |
+| 2 | User (red, not implemented yet) |
+
+Default bindings are in `src/settings.json`; only the gesture→CC mapping is configurable there — parameter meaning is fixed in the extension.
 
 ### Fader layers
 
@@ -124,7 +148,65 @@ cp build/LumaFader.bwextension ~/Documents/Bitwig\ Studio/Extensions/
 
 Reload the extension in Bitwig after copying. Firmware changes: `python3 scripts/deploy.py`.
 
+## Four-Track workspace (mode 2)
+
+Multi-track mixing on **four visible mixer tracks at a time**. The viewport does **not** follow Bitwig’s selected track after you enter — you can click another track in the DAW while the hardware stays on its current page.
+
+**On enter:** the page is aligned so the currently selected track lies on the active page (tracks 1–4, 5–8, … in the **visible** track list). Partial last pages leave unused faders **off**.
+
+### Fader layers
+
+| Hold | Button | Faders control | CC bank |
+|------|--------|----------------|---------|
+| (default) | — | **Send** *N* on slots 1–4 (shared send index) | 20–23 |
+| Button 4 | `overlay_1` | **Volume** on slots 1–4 | 24–27 |
+| Button 3 | `overlay_2` | **Pan** on slots 1–4 (bipolar LEDs) | 28–31 |
+| Button 2 | `overlay_3` | Unused in v1 | — |
+
+**Fine control:** button 1 works as in Focus (smaller steps while held).
+
+Send overlay behavior matches Focus: missing send bus → LED off; unused send on a track → dim LED, first touch enables routing.
+
+### LED colors
+
+Fader LEDs use each slot’s **track color** for sends, volume, and pan (not send-bus colors). Inactive slots on a partial page are off.
+
+### Navigation
+
+| Chord | Action |
+|-------|--------|
+| Hold button 4, tap button 1 | Next **page** of four tracks — down / higher track numbers (bottom edge flash at end) |
+| Hold button 1, tap button 4 | Previous **page** — up / lower track numbers (top edge flash at start) |
+| Hold button 3, tap button 2 | Next **send** bus (right edge flash at limit) |
+| Hold button 2, tap button 3 | Previous **send** (left edge flash at limit) |
+
+### Track list and paging
+
+Visible tracks = `exists()` + `isActivated()` in a 256-slot flat track bank (collapsed/hidden mixer rows excluded). Pages are quantized to groups of four (1–4, 5–8, … never 2–5).
+
+The extension maps logical slots to bank indices; Bitwig’s mixer **highlight** is always four **consecutive** arranger tracks at the page scroll position.
+
+### Mixer highlight (bounding box)
+
+While in Four-Track, Bitwig draws a track-window box around four consecutive tracks (`setShouldShowClipLauncherFeedback` — **indication only**, no clip launching). The box tracks the controller page, not UI selection, so you can see which block the hardware is addressing when the arranger selection differs.
+
+Implementation notes: `FourTrackViewport` manages the visible list and paging; a 4-track `TrackBank` scrolls via API 6 `scrollPosition` / `scrollIntoView` (not deprecated `scrollToChannel`).
+
+### Deploy after changes
+
+```bash
+cd extension && ./build.zsh
+cp build/LumaFader.bwextension ~/Documents/Bitwig\ Studio/Extensions/
+python3 scripts/deploy.py   # firmware
+```
+
+Reload the extension in Bitwig after copying the `.bwextension`.
+
 ## Known limitations
+
+### Four-Track vs arranger layout
+
+If the visible track list skips hidden or collapsed rows, fader slots may not line up one-to-one with the four consecutive tracks in Bitwig’s highlight window. Paging and control still use the logical visible list; the highlight shows the arranger scroll window.
 
 ### Track remotes in the device panel
 
