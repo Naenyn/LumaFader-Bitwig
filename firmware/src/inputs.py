@@ -17,23 +17,34 @@ class MidiSlider:
         self.current_value = 0
         self.smoothed_value = 0
         self.position = 0
+        self.physical_position = 0
         self.last_position = 0
         self.delta = 0
         self.changed = False
 
         self.adaptive_buffer = []
-        self.adaptive_state = "CHANGING"
-        self.adaptive_last_position = -1
+        self.adaptive_state = "STABLE"
+        self.adaptive_last_position = 0
         self.adaptive_last_send_time = time.monotonic()
+        self._primed = False
 
     def update(self):
         self.current_value = 65536 - self.analog_pin.value
+        now = time.monotonic()
 
-        if self.adaptive_last_position < 0:
-            self.adaptive_last_position = self._raw_to_position(self.current_value)
-
-        if self.adaptive_last_position < 0:
-            self.adaptive_last_position = 0
+        if not self._primed:
+            self.smoothed_value = float(self.current_value)
+            self.position = self._raw_to_position(self.smoothed_value)
+            self.physical_position = self.position
+            self.last_position = self.position
+            self.adaptive_last_position = self.position
+            self.adaptive_last_send_time = now
+            self.adaptive_buffer = [self.position]
+            self._primed = True
+            self.delta = 0
+            self.changed = False
+            self.last_value = self.current_value
+            return False
 
         smoothed_raw = (
             cfg.ADAPTIVE_SMOOTHING_FACTOR * self.current_value
@@ -41,6 +52,7 @@ class MidiSlider:
         )
         self.smoothed_value = smoothed_raw
         position = self._raw_to_position(smoothed_raw)
+        self.physical_position = position
 
         self.adaptive_buffer.append(position)
         if len(self.adaptive_buffer) > cfg.ADAPTIVE_BUFFER_SIZE:
@@ -53,7 +65,6 @@ class MidiSlider:
         )
 
         should_update = abs(position - self.adaptive_last_position) >= threshold
-        now = time.monotonic()
 
         if self.adaptive_state == "CHANGING":
             if now - self.adaptive_last_send_time >= cfg.ADAPTIVE_HOLD_DURATION:
@@ -83,7 +94,6 @@ class MidiSlider:
         self.delta = 0
         self.changed = False
         return d
-
 
 class BankButton:
     """Debounced button with hold and double-press detection."""

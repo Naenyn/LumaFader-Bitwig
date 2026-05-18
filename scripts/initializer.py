@@ -7,19 +7,14 @@ import time
 NUKE = False
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NUKE_FP = os.path.join(REPO_ROOT, "uf2", "flash_nuke.uf2")
-UF2_92 = os.path.join(
+NUKE_FP = os.path.join(REPO_ROOT, "firmware", "uf2", "flash_nuke.uf2")
+UF2_FP = os.path.join(
     REPO_ROOT,
+    "firmware",
     "uf2",
     "adafruit-circuitpython-raspberry_pi_pico-en_US-9.2.8.uf2",
 )
-UF2_82 = os.path.join(
-    REPO_ROOT,
-    "uf2",
-    "adafruit-circuitpython-raspberry_pi_pico-en_US-8.2.6.uf2",
-)
-UF2_FP = UF2_92 if os.path.isfile(UF2_92) else UF2_82
-SRC_FOLDER_FP = os.path.join(REPO_ROOT, "src")
+SRC_FOLDER_FP = os.path.join(REPO_ROOT, "firmware", "src")
 # ---------------------------
 
 RPI_INIT_FP = "/Volumes/RPI-RP2"
@@ -116,7 +111,7 @@ def main():
         if do_uf2:
             if not os.path.isfile(UF2_FP):
                 print(f"UF2 not found: {UF2_FP}")
-                print("Copy UF2 files into repo uf2/ or skip UF2 flash.")
+                print("Download into firmware/uf2/ — see README (CircuitPython UF2 files).")
                 continue
             if not flash_uf2():
                 print("UF2 flashing failed.")

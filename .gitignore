@@ -3,6 +3,9 @@ __pycache__/
 .DS_Store
 srccombined.txt
 
+# CircuitPython OS installers (download into firmware/uf2/ — see README)
+firmware/uf2/*.uf2
+
 # Bitwig extension build output (compile against bitwig.jar from the app install)
 extension/build/
 

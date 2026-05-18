@@ -1,6 +1,6 @@
 import board
+import microcontroller
 import neopixel
-import storage
 import time
 
 import constants as cfg
@@ -35,22 +35,22 @@ class PixelHardware:
         self.pixels.show()
 
     def startup_animation(self):
-        readonly = storage.getmount("/").readonly
-        if readonly:
+        """Stock LumaFader rainbow (~2s). Red blink = four-button config boot (LUMAFADER mode)."""
+        config_boot = len(microcontroller.nvm) > 0 and microcontroller.nvm[0] == 1
+        if config_boot:
             for _ in range(3):
-                self.pixels.fill(cfg.COLOR_REJECT)
+                self.pixels.fill((255, 0, 0))
                 self.show()
                 time.sleep(0.2)
-                self.clear()
+                self.pixels.fill(cfg.COLOR_OFF)
                 self.show()
                 time.sleep(0.2)
-        self._rainbow(duration=2.0)
+
+        self.rainbow_animation(speed=0.002, cycles=2, duration=2.0)
         self.clear()
         self.show()
 
-    def _rainbow(self, duration=2.0):
-        start = time.monotonic()
-
+    def rainbow_animation(self, speed=0.01, cycles=3, duration=None):
         def wheel(pos):
             if pos < 85:
                 return (255 - pos * 3, pos * 3, 0)
@@ -60,11 +60,18 @@ class PixelHardware:
             pos -= 170
             return (pos * 3, 0, 255 - pos * 3)
 
-        j = 0
-        while time.monotonic() - start < duration:
-            for i in range(self.NUM_PIXELS):
-                pos = (i * 256 * 2 // self.NUM_PIXELS + j) % 256
-                self.pixels[i] = wheel(pos)
-            self.show()
-            time.sleep(0.002)
-            j = (j + 1) % 256
+        start_time = time.monotonic()
+        try:
+            while True:
+                if duration is not None and (time.monotonic() - start_time) > duration:
+                    break
+                for j in range(256):
+                    if duration is not None and (time.monotonic() - start_time) > duration:
+                        break
+                    for i in range(self.NUM_PIXELS):
+                        position = (i * 256 * cycles // self.NUM_PIXELS + j) % 256
+                        self.pixels[i] = wheel(position)
+                    self.show()
+                    time.sleep(speed)
+        except KeyboardInterrupt:
+            pass

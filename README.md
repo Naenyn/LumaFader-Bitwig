@@ -2,19 +2,95 @@
 
 Firmware and Bitwig Studio controller extension for the [DJBB LumaFader](https://www.djbajablast.com/post/lumafader68).
 
-Same repo layout as [Midi-Slider-Cherry](https://github.com/derrickthomin/Midi-Slider-Cherry):
+```
+firmware/
+  src/            CircuitPython source (deployed to the device)
+  uf2/            CircuitPython OS images (local only — not in git)
+extension/
+  src/            Bitwig extension (.java → .bwextension)
+scripts/          deploy.py, initializer.py, install_libs.sh
+docs/             Protocol, deploy notes, web_config.html
+combineallcode.py Merge firmware/src for review
+```
 
+Stock [Midi-Slider-Cherry](https://github.com/derrickthomin/Midi-Slider-Cherry) keeps a flat `src/` at repo root; this repo uses `firmware/src/` next to `extension/src/`.
+
+## Development requirements
+
+What you need on a dev machine to work on this repo. End-user setup (flash, deploy, install extension) is under [Deploying firmware](#deploying-firmware-read-this) and [Install / reload](#install--reload).
+
+### Hardware
+
+| Item | Notes |
+|------|--------|
+| **DJBB LumaFader** (or Pico + matching hardware) | USB data cable; test MIDI, serial, and LEDs on real hardware |
+| **Pico BOOT** (PCB button) | Only for flashing CircuitPython `.uf2` — not used in normal play |
+
+### Firmware (CircuitPython)
+
+Firmware is **not compiled** — Python source in `firmware/src/` is copied to the device. You edit on the host and deploy.
+
+| Requirement | Used for |
+|-------------|----------|
+| **Python 3** | `scripts/deploy.py`, `scripts/initializer.py` |
+| **[mpremote](https://docs.circuitpython.org/en/latest/docs/mpremote.html)** | Routine deploy: `python3 -m pip install mpremote` |
+| **`curl`** and **`unzip`** | `scripts/install_libs.sh` (downloads Adafruit 9.x bundle) |
+| **Chrome or Edge** | `docs/web_config.html` (Web Serial settings editor) |
+| **CircuitPython 9.2.x UF2** | One-time device runtime — see [UF2 files](#circuitpython-uf2-files-uf2) (not in git) |
+
+Optional: `scripts/initializer.py` (interactive UF2 flash + volume copy) if you prefer drag-and-drop over `mpremote` for a full factory setup.
+
+### Bitwig extension
+
+The extension is **compiled** to a single `LumaFader.bwextension` (ZIP of JVM classes). Bitwig loads it from its Extensions folder.
+
+| Requirement | Used for |
+|-------------|----------|
+| **Bitwig Studio** (installed) | Provides `bitwig.jar` API; runtime host for testing |
+| **JDK 8+** with `javac` and `jar` on `PATH` | `extension/build.zsh` compiles with `--release 8` |
+| **zsh** | `build.zsh` uses zsh-specific syntax — do not run with bash |
+| **`BITWIG_APP_PATH` or `BITWIG_JAR`** (if non-default install) | Default: `/Applications/Bitwig Studio.app` on macOS |
+
+Build:
+
+```bash
+cd extension && zsh build.zsh
 ```
-src/              CircuitPython source
-scripts/          deploy.py, initializer.py
-combineallcode.py Merge src for review
-docs/             Protocol + deploy notes
-uf2/              CircuitPython installer (.uf2)
-```
+
+Install the artifact:
+
+| OS | Extensions folder |
+|----|-------------------|
+| macOS | `~/Documents/Bitwig Studio/Extensions/` |
+| Linux | `~/Bitwig Studio/Extensions/` |
+| Windows | `%USERPROFILE%\Documents\Bitwig Studio\Extensions\` |
+
+Reload the extension in Bitwig after copying `extension/build/LumaFader.bwextension`.
+
+**Built and tested against Bitwig Studio 5.3.13** (`bitwig.jar` from that install). Other 5.x versions may work if the Controller API is compatible; compile against the same major version you run.
+
+### Repo-only (optional)
+
+| Tool | Used for |
+|------|----------|
+| **Python 3** | `combineallcode.py` → `srccombined.txt` (review bundle; output is gitignored) |
+
+Protocol and deploy details: [docs/PROTOCOL.md](docs/PROTOCOL.md), [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## CircuitPython UF2 files (`firmware/uf2/`)
+
+The `firmware/uf2/` folder is **gitignored**. Download these binaries once and save them under `firmware/uf2/` (create the folder if needed). They are **not** built by this repo — they install the CircuitPython runtime on the Pico.
+
+| Save as | Purpose | Download |
+|---------|---------|----------|
+| `adafruit-circuitpython-raspberry_pi_pico-en_US-9.2.8.uf2` | **Required** — CircuitPython 9.2.8 for Raspberry Pi Pico (short USB MIDI name, matches `install_libs.sh`) | [Direct .uf2](https://downloads.circuitpython.org/bin/raspberry_pi_pico/en_US/adafruit-circuitpython-raspberry_pi_pico-en_US-9.2.8.uf2) · [Board page](https://circuitpython.org/board/raspberry_pi_pico/) |
+| `flash_nuke.uf2` | **Optional** — wipe flash before a clean install or when upgrading from very old firmware | [Adafruit: Resetting your Pico](https://learn.adafruit.com/resetting-your-pico-board) ([direct .uf2](https://cdn-learn.adafruit.com/downloads/flash_nuke.uf2)) |
+
+Use **9.2.x** only. Older 8.x `.uf2` / library bundles are incompatible with this project.
 
 ## Deploying firmware (read this)
 
-**Pico BOOT** (small button on the **PCB**, not used during performance) + USB → **`RPI-RP2`** in `/Volumes`. That is the chip’s UF2 loader — use it only to drag **`uf2/*.uf2`**, not `.py` files.
+**Pico BOOT** (small button on the **PCB**, not used during performance) + USB → **`RPI-RP2`** in `/Volumes`. That is the chip’s UF2 loader — use it only to drag a file from **`firmware/uf2/`**, not `.py` files.
 
 **Normal plug-in** (do not hold Pico BOOT) → CircuitPython runs → deploy code with:
 
@@ -25,15 +101,16 @@ python3 scripts/deploy.py
 
 No `/Volumes` mount required. See [docs/DEPLOY.md](docs/DEPLOY.md) for the full picture.
 
-**Web config:** open [`docs/web_config.html`](docs/web_config.html) in Chrome or Edge (Web Serial), connect, edit, save, then hard-reset the device.
+**Web config:** open [`docs/web_config.html`](docs/web_config.html) in Chrome or Edge (Web Serial), connect, edit, save, then hard-reset the device. Disconnect (or close the tab) before `python3 scripts/deploy.py` — only one program can use the USB serial port at a time ([details](docs/DEPLOY.md#editing-settings-on-the-device)).
 
 **Edit settings on the device:** hold **all four front buttons** while plugging in USB → red blink ×3, then rainbow → **LUMAFADER** mounts. Edit `settings.json`, eject, then **hard-reset** (unplug/replug, no buttons) for normal mode. See [docs/DEPLOY.md](docs/DEPLOY.md). Routine deploy: `python3 scripts/deploy.py`.
 
 ### First-time install
 
-1. Hold **Pico BOOT**, plug USB → copy `uf2/adafruit-circuitpython-raspberry_pi_pico-en_US-9.2.8.uf2` to **RPI-RP2** (9.x needed for short MIDI port name **LumaFader** in ShowMIDI etc.).
-2. Release BOOT, replug, run `python3 scripts/deploy.py`.
-3. Install **CircuitPython 9.x** libraries (required after UF2 upgrade; 8.x `.mpy` files will crash silently):
+1. Download the UF2 files into `firmware/uf2/` (see table above).
+2. Hold **Pico BOOT**, plug USB → drag `firmware/uf2/adafruit-circuitpython-raspberry_pi_pico-en_US-9.2.8.uf2` onto **RPI-RP2**.
+3. Release BOOT, replug, run `python3 scripts/deploy.py`.
+4. Install **CircuitPython 9.x** libraries (required after UF2 install; 8.x `.mpy` files will crash silently):
 
    ```bash
    ./scripts/install_libs.sh
@@ -44,7 +121,7 @@ No `/Volumes` mount required. See [docs/DEPLOY.md](docs/DEPLOY.md) for the full 
 ## Status
 
 - **Firmware:** Bitwig mode — absolute fader CCs, overlay banks, gesture/action CCs, SysEx LEDs, USB MIDI only.
-- **Extension:** **Focus** (blue), **Four-Track** (green), and **User** (red, DAW-agnostic CC) are implemented. Build with `extension/build.zsh`; install `extension/build/LumaFader.bwextension` into Bitwig’s Extensions folder.
+- **Extension:** **Focus** (blue), **Four-Track** (green), and **User** (red, DAW-agnostic CC) are implemented. Built against **Bitwig 5.3.13**. Build with `extension/build.zsh`; install `extension/build/LumaFader.bwextension` into Bitwig’s Extensions folder.
 
 ## Modes (overview)
 
@@ -66,7 +143,7 @@ Example: holding button 4 for volume and pressing button 1 for fine control does
 
 Focus is the default Bitwig mode for detailed editing on **one track at a time**. The extension follows Bitwig’s **cursor track** and **cursor device**; faders and navigation move that selection. The mode indicator LED (between faders B and C) is **blue**.
 
-**Mode double-taps** (see `src/settings.json`):
+**Mode double-taps** (see `firmware/src/settings.json`):
 
 | Button | Mode |
 |--------|-----------|
@@ -74,7 +151,7 @@ Focus is the default Bitwig mode for detailed editing on **one track at a time**
 | 3 | Four-Track (green) |
 | 2 | User (red, not implemented yet) |
 
-Default bindings are in `src/settings.json`; only the gesture→CC mapping is configurable there — parameter meaning is fixed in the extension.
+Default bindings are in `firmware/src/settings.json`; only the gesture→CC mapping is configurable there — parameter meaning is fixed in the extension.
 
 ### Fader layers
 
@@ -273,7 +350,27 @@ In Focus mode, navigating **left** from the first device on a track enters **tra
 
 **Accepted behavior for now:** hardware controls track remotes correctly; open the track remotes strip in the device panel manually if you want it visible on screen.
 
+## Possible future features
+
+Not planned for the current release; listed here so ideas stay visible without committing to UI or firmware complexity yet.
+
+### Upside-down / “handedness” mode
+
+A setting to flip the logical control layout (buttons and fader indices mirrored) so the unit could be used with the USB port on the opposite edge — useful if you prefer the faders on the other side.
+
+**Why we’re holding off:** in that orientation the cable exits toward the player and tends to wrap around the body. The physical gap between the button row and the fader caps is already large enough that one-handed use is awkward either way, so the ergonomic win is unclear. If demand shows up, a toggle plus clear LED/fader remapping would be the shape of the work.
+
+### User mode: configurable view → hold mapping
+
+Focus and Four-Track modes let you assign each fader layer to **Default** or a hold button (see web config). User mode still uses a **fixed** map: view 0 = no hold, views 1–3 = hold buttons 4, 3, 2 (`user_mode.py`).
+
+**Why we’re holding off:** remapping only changes which button selects which slot in `USER_CC_GRID`; it doesn’t add capability, and the CC grid UI is already dense. Most “weird” orders (e.g. view 1 on button 2 instead of 4) are edge cases; a simple **hold-order preset** (top-down vs bottom-up) would cover most of them without a full four-way assignment UI. Revisit if users ask for ergonomic or legacy-controller parity reasons.
+
 ## Reference (read-only)
 
 - `../Midi-Slider-Cherry` — original firmware
 - `../DrivenByMoss` — Bitwig extension patterns
+
+## Acknowledgments
+
+Firmware in this repo derives from [Midi-Slider-Cherry](https://github.com/derrickthomin/Midi-Slider-Cherry) (DJBB LumaFader). The Bitwig extension, protocol changes, web config, and most Bitwig-specific firmware work were developed here with substantial help from **AI-assisted coding in [Cursor](https://cursor.com)** — design, implementation, and documentation were iterated collaboratively (human direction, agent edits). Credit where it is due.

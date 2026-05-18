@@ -13,6 +13,6 @@ def combine_files(src_folder, output_file):
                 outfile.write(f"\n#--- END {filename} ---#\n\n")
 
 
-src_folder = os.path.join(os.path.dirname(__file__), "src")
+src_folder = os.path.join(os.path.dirname(__file__), "firmware", "src")
 output_file = os.path.join(os.path.dirname(__file__), "srccombined.txt")
 combine_files(src_folder, output_file)

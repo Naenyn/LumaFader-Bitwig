@@ -1,11 +1,22 @@
 import constants as cfg
 
 
+def _normalize_sysex_body(data):
+    """Strip F0/F7 if present; adafruit_midi usually omits them on SystemExclusive."""
+    body = list(data)
+    while body and body[0] == 0xF0:
+        body.pop(0)
+    while body and body[-1] == 0xF7:
+        body.pop()
+    return body
+
+
 def parse_sysex(data, visible_state):
     """
-    Parse an incoming SysEx byte sequence (without F0/F7 framing).
+    Parse SysEx body: 7D 01 01 <type> <payload…> (no F0/F7).
     Returns True if a message was handled.
     """
+    data = _normalize_sysex_body(data)
     if len(data) < 4:
         return False
     if data[0] != cfg.SYSEX_MANUFACTURER_ID:

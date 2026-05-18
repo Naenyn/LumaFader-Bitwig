@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Deploy src/ to a LumaFader running CircuitPython.
+Deploy firmware/src/ to a LumaFader running CircuitPython.
 
 Normal use: plug in USB (do NOT hold the Pico BOOT button). Files copy over the
 USB serial / REPL connection via mpremote — no /Volumes mount required.
@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(REPO_ROOT, "src")
+SRC = os.path.join(REPO_ROOT, "firmware", "src")
 VOLUME_NAMES = ("LUMAFADER", "CIRCUITPY", "LUMA")
 
 
@@ -50,7 +50,11 @@ def deploy_mpremote():
     port = _mpremote_port()
     files = []
     for root, _dirs, filenames in os.walk(SRC):
+        if "__pycache__" in root.split(os.sep):
+            continue
         for name in filenames:
+            if name.endswith(".pyc"):
+                continue
             local = os.path.join(root, name)
             rel = os.path.relpath(local, SRC).replace(os.sep, "/")
             files.append((local, rel))
@@ -118,7 +122,7 @@ def main():
     if vol and os.path.basename(vol) == "RPI-RP2":
         print("RPI-RP2 is mounted (Pico BOOT loader).")
         print("This tool cannot copy .py files there.")
-        print("  • Flash CircuitPython: drag uf2/*.uf2 onto RPI-RP2")
+        print("  • Flash CircuitPython: drag firmware/uf2/*.uf2 onto RPI-RP2")
         print("  • Then release BOOT, replug normally, run this script again")
         sys.exit(1)
 
@@ -139,6 +143,7 @@ def main():
             install_hint()
         else:
             print("Is the device plugged in WITHOUT holding Pico BOOT?")
+            print("Close web_config.html (Web Serial) or Bitwig if the port is in use.")
             print("Check System Settings → Privacy → USB / serial access if needed.")
         sys.exit(1)
     except FileNotFoundError:

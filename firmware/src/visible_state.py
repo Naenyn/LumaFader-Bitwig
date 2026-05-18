@@ -14,6 +14,8 @@ class VisibleState:
         self.button_color = [(0, 0, 0)] * 4
         self.nav_reject_edge = cfg.EDGE_NONE
         self.nav_reject_until = 0.0
+        self.sysex_ok_count = 0
+        self.sysex_fail_count = 0
 
     def apply_visible_state(self, payload):
         if len(payload) < 36:

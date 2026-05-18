@@ -1,4 +1,5 @@
 #!/usr/bin/env zsh
+# Compile against bitwig.jar from Bitwig Studio 5.3.13 (or set BITWIG_JAR).
 set -euo pipefail
 
 ROOT="${0:A:h}"

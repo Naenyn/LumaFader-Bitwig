@@ -3,11 +3,12 @@ import time
 import board
 import digitalio
 import analogio
+import microcontroller
 
 from controller import LumaFaderController
 from hardware import PixelHardware
 from led_renderer import LedRenderer
-from midi_transport import MidiTransport
+from midi import create_midi_manager
 from serial_config import serial_config
 from visible_state import VisibleState
 
@@ -32,19 +33,22 @@ for pin in button_pins:
 visible_state = VisibleState()
 hardware = PixelHardware()
 hardware.startup_animation()
+# boot.py sets NVM for one config-boot red blink; soft reload (e.g. after drive eject)
+# skips boot.py, so clear the flag so we do not repeat config-mode LEDs.
+microcontroller.nvm[0:1] = bytes([0])
 
-midi = MidiTransport(visible_state)
+midi_manager = create_midi_manager(visible_state)
 led_renderer = LedRenderer(hardware, visible_state)
-controller = LumaFaderController(slider_pins, button_pins, midi, visible_state)
+controller = LumaFaderController(slider_pins, button_pins, midi_manager, visible_state)
 
 serial_config.set_controller(controller)
-serial_config.set_midi(midi)
+serial_config.set_midi(midi_manager)
 
 while True:
     now = time.monotonic()
-    midi.poll_incoming()
+    midi_manager.poll_incoming()
     controller.update_inputs()
     controller.process()
     serial_config.update()
-    led_renderer.render(now)
+    led_renderer.render(now, controller)
     time.sleep(0.0001)

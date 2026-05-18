@@ -342,6 +342,7 @@
                 <li>Plug in LumaFader over USB — <strong>do not</strong> hold Pico BOOT.</li>
                 <li>Click <strong>Connect</strong> and choose the <strong>LumaFader</strong> serial port.</li>
                 <li>Edit settings, then <strong>Save to device</strong>. Hard-reset (unplug/replug) to apply.</li>
+                <li>While connected here, <code>python3 scripts/deploy.py</code> cannot run — <strong>Disconnect</strong> or close this tab before deploying firmware.</li>
             </ol>
             <p class="hint" style="margin-top:10px">Stock LumaFader (non-Bitwig) firmware uses the <a href="https://derrickthomin.github.io/Midi-Slider-Cherry/web_config.html">Cherry web config</a>.</p>
         </div>
@@ -423,7 +424,7 @@
                 <div id="focusLayerMap"></div>
                 <p class="binding-conflict-warn protocol-warn" id="conflictWarn_focus_layers"></p>
 
-                <h3>Navigation chords</h3>
+                <h3>Navigation</h3>
                 <div id="bindingFieldsFocusNav"></div>
                 <p class="binding-conflict-warn protocol-warn" id="conflictWarn_focus_nav"></p>
 
@@ -438,12 +439,12 @@
                 <h2>Four-Track mode</h2>
                 <p class="hint">Green indicator. Four visible mixer tracks per page; send, volume, and pan layers.</p>
 
-                <h3>Overlay holds</h3>
-                <p class="hint">Hold buttons for volume / pan layers (CC 50–52).</p>
-                <div id="bindingFieldsFourTrackOverlay"></div>
-                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_four_track_overlay"></p>
+                <h3>Fader layers</h3>
+                <p class="hint">Four Four-Track views — assign each to <strong>Default</strong> (no button held) or a hold button. The fine modifier button is not available. Each trigger can only be used once.</p>
+                <div id="fourTrackLayerMap"></div>
+                <p class="binding-conflict-warn protocol-warn" id="conflictWarn_four_track_layers"></p>
 
-                <h3>Navigation chords</h3>
+                <h3>Navigation</h3>
                 <div id="bindingFieldsFourTrackNav"></div>
                 <p class="binding-conflict-warn protocol-warn" id="conflictWarn_four_track_nav"></p>
 
@@ -492,10 +493,10 @@
 
     <script>
         const BUTTON_OPTIONS = [
-            { v: 0, l: '1 (bottom)' },
+            { v: 0, l: '1' },
             { v: 1, l: '2' },
             { v: 2, l: '3' },
-            { v: 3, l: '4 (top)' },
+            { v: 3, l: '4' },
         ];
         const MODE_NAMES = ['Focus (blue)', 'Four-Track (green)', 'User (red)'];
         const OVERLAY_NAMES = ['—', 'Overlay 1 (btn 4)', 'Overlay 2 (btn 3)', 'Overlay 3 (btn 2)'];
@@ -546,7 +547,6 @@
         const BINDING_ROOT_IDS = {
             shared: 'bindingFieldsShared',
             focus_nav: 'bindingFieldsFocusNav',
-            four_track_overlay: 'bindingFieldsFourTrackOverlay',
             four_track_nav: 'bindingFieldsFourTrackNav',
             user: 'bindingFieldsUser',
         };
@@ -605,6 +605,21 @@
             obj.FOCUS_FADER_LAYERS = layers;
         }
 
+        function migrateLegacyFourTrackLayers(obj) {
+            if (obj.FOUR_TRACK_FADER_LAYERS) return;
+            const bindings = obj.BINDINGS || {};
+            const layers = { ...DEFAULT_FOUR_TRACK_FADER_LAYERS };
+            const slotLayers = ['volume', 'pan', 'utility'];
+            const keys = ['four_track_overlay_1', 'four_track_overlay_2', 'four_track_overlay_3'];
+            keys.forEach((key, i) => {
+                const spec = bindings[key];
+                if (spec && spec.type === 'hold' && typeof spec.button === 'number') {
+                    layers[slotLayers[i]] = spec.button;
+                }
+            });
+            obj.FOUR_TRACK_FADER_LAYERS = layers;
+        }
+
         function protocolActionCcObject() {
             const o = {};
             PROTOCOL_ACTION_CC.forEach(r => { o[r.key] = r.cc; });
@@ -640,21 +655,18 @@
             { key: 'mode_focus', label: 'Focus Mode', group: 'shared', types: ['double_tap'] },
             { key: 'mode_four_track', label: 'Four-Track Mode', group: 'shared', types: ['double_tap'] },
             { key: 'mode_user', label: 'User Mode', group: 'shared', types: ['double_tap'] },
-            { key: 'nav_next_track', label: 'Nav next track', group: 'focus_nav', types: ['chord'] },
-            { key: 'nav_prev_track', label: 'Nav prev track', group: 'focus_nav', types: ['chord'] },
-            { key: 'nav_next_device', label: 'Nav next device', group: 'focus_nav', types: ['chord'] },
-            { key: 'nav_prev_device', label: 'Nav prev device', group: 'focus_nav', types: ['chord'] },
-            { key: 'four_track_overlay_1', label: 'Overlay 1 — volume', group: 'four_track_overlay', types: ['hold'] },
-            { key: 'four_track_overlay_2', label: 'Overlay 2 — pan', group: 'four_track_overlay', types: ['hold'] },
-            { key: 'four_track_overlay_3', label: 'Overlay 3 — (unused)', group: 'four_track_overlay', types: ['hold'] },
-            { key: 'nav_next_track_page', label: 'Nav next track page', group: 'four_track_nav', types: ['chord'] },
-            { key: 'nav_prev_track_page', label: 'Nav prev track page', group: 'four_track_nav', types: ['chord'] },
-            { key: 'nav_next_send', label: 'Nav next send', group: 'four_track_nav', types: ['chord'] },
-            { key: 'nav_prev_send', label: 'Nav prev send', group: 'four_track_nav', types: ['chord'] },
-            { key: 'nav_user_bank_down', label: 'Bank down', group: 'user', types: ['chord'] },
-            { key: 'nav_user_bank_up', label: 'Bank up', group: 'user', types: ['chord'] },
-            { key: 'nav_user_page_up', label: 'Page up', group: 'user', types: ['chord'] },
-            { key: 'nav_user_page_down', label: 'Page down', group: 'user', types: ['chord'] },
+            { key: 'nav_next_track', label: 'Select next track', group: 'focus_nav', types: ['chord'] },
+            { key: 'nav_prev_track', label: 'Select prev track', group: 'focus_nav', types: ['chord'] },
+            { key: 'nav_next_device', label: 'Select next device', group: 'focus_nav', types: ['chord'] },
+            { key: 'nav_prev_device', label: 'Select previous device', group: 'focus_nav', types: ['chord'] },
+            { key: 'nav_next_track_page', label: 'Next track page', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_prev_track_page', label: 'Previous track page', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_next_send', label: 'Next send', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_prev_send', label: 'Previous send', group: 'four_track_nav', types: ['chord'] },
+            { key: 'nav_user_bank_up', label: 'Next bank', group: 'user', types: ['chord'] },
+            { key: 'nav_user_bank_down', label: 'Previous bank', group: 'user', types: ['chord'] },
+            { key: 'nav_user_page_up', label: 'Next page', group: 'user', types: ['chord'] },
+            { key: 'nav_user_page_down', label: 'Previous page', group: 'user', types: ['chord'] },
         ];
 
         const FOCUS_FADER_LAYERS = [
@@ -668,6 +680,20 @@
             remotes_1_4: 'default',
             remotes_5_8: 3,
             sends: 2,
+            utility: 1,
+        };
+
+        const FOUR_TRACK_FADER_LAYERS = [
+            { id: 'sends', label: 'Send levels', hint: 'Default layer — send levels on the 4 visible tracks (CC 20–23)' },
+            { id: 'volume', label: 'Track volume', hint: 'Track volume on visible tracks (CC 24–27, overlay CC 50)' },
+            { id: 'pan', label: 'Track pan', hint: 'Track pan on visible tracks (CC 28–31, overlay CC 51)' },
+            { id: 'utility', label: 'Reserved', hint: 'Same CC bank as Focus utility (CC 32–35, overlay CC 52); unused in Bitwig Four-Track' },
+        ];
+
+        const DEFAULT_FOUR_TRACK_FADER_LAYERS = {
+            sends: 'default',
+            volume: 3,
+            pan: 2,
             utility: 1,
         };
 
@@ -693,11 +719,10 @@
                 warnId: 'conflictWarn_focus_layers',
             },
             {
-                id: 'four_track_overlay',
-                kind: 'button',
-                label: 'Four-Track overlay holds',
-                warnId: 'conflictWarn_four_track_overlay',
-                slotIds: () => BINDING_META.filter(m => m.group === 'four_track_overlay').map(m => m.key),
+                id: 'four_track_layers',
+                kind: 'four_track_layers',
+                label: 'Four-Track fader layers',
+                warnId: 'conflictWarn_four_track_layers',
             },
             {
                 id: 'focus_nav',
@@ -809,6 +834,7 @@
             });
 
             buildFocusLayerMapStatic();
+            buildFourTrackLayerMapStatic();
 
             const sliderBars = document.getElementById('sliderBars');
             ['A', 'B', 'C', 'D'].forEach((name, i) => {
@@ -934,7 +960,7 @@
                     <div class="binding-title">${layer.label}</div>
                     <p class="hint" style="margin:0 0 8px">${layer.hint}</p>
                     <div class="field">
-                        <label>Activated by</label>
+                        <label>Activated by holding</label>
                         <select data-focus-layer="${layer.id}"></select>
                     </div>`;
                 root.appendChild(card);
@@ -952,7 +978,7 @@
             BUTTON_OPTIONS.forEach(o => {
                 const opt = document.createElement('option');
                 opt.value = String(o.v);
-                opt.textContent = o.l + ' (hold)';
+                opt.textContent = o.l;
                 if (o.v === fine) {
                     opt.disabled = true;
                     opt.textContent += ' — fine modifier';
@@ -1049,6 +1075,157 @@
             return { layers, byTrigger, dupTriggers, fineConflictLayers };
         }
 
+        function readFourTrackFaderLayers() {
+            const out = { ...DEFAULT_FOUR_TRACK_FADER_LAYERS };
+            FOUR_TRACK_FADER_LAYERS.forEach(layer => {
+                const sel = document.querySelector(`[data-four-track-layer="${layer.id}"]`);
+                if (!sel) return;
+                const v = sel.value;
+                out[layer.id] = v === 'default' ? 'default' : parseInt(v, 10);
+            });
+            return out;
+        }
+
+        function writeFourTrackLayerTrigger(layerId, trigger) {
+            const sel = document.querySelector(`[data-four-track-layer="${layerId}"]`);
+            if (!sel) return;
+            sel.value = trigger === 'default' ? 'default' : String(trigger);
+            sel.dataset.swapPrev = sel.value;
+        }
+
+        function fourTrackLayerTriggerLabel(trigger) {
+            if (trigger === 'default') return 'Default';
+            const opt = BUTTON_OPTIONS.find(o => o.v === trigger);
+            return opt ? opt.l : `Button ${trigger + 1}`;
+        }
+
+        function buildFourTrackLayerMapStatic() {
+            const root = document.getElementById('fourTrackLayerMap');
+            if (!root) return;
+            root.innerHTML = '';
+            FOUR_TRACK_FADER_LAYERS.forEach(layer => {
+                const card = document.createElement('div');
+                card.className = 'binding-card';
+                card.dataset.fourTrackLayerCard = layer.id;
+                card.innerHTML = `
+                    <div class="binding-title">${layer.label}</div>
+                    <p class="hint" style="margin:0 0 8px">${layer.hint}</p>
+                    <div class="field">
+                        <label>Activated by holding</label>
+                        <select data-four-track-layer="${layer.id}"></select>
+                    </div>`;
+                root.appendChild(card);
+            });
+        }
+
+        function fillFourTrackLayerSelectOptions(sel, selected) {
+            const fine = getFineModifierButton();
+            sel.innerHTML = '';
+            const def = document.createElement('option');
+            def.value = 'default';
+            def.textContent = 'Default (no button held)';
+            if (selected === 'default') def.selected = true;
+            sel.appendChild(def);
+            BUTTON_OPTIONS.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = String(o.v);
+                opt.textContent = o.l;
+                if (o.v === fine) {
+                    opt.disabled = true;
+                    opt.textContent += ' — fine modifier';
+                }
+                if (selected === o.v) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
+        function renderFourTrackLayerMap(layers) {
+            FOUR_TRACK_FADER_LAYERS.forEach(layer => {
+                const sel = document.querySelector(`[data-four-track-layer="${layer.id}"]`);
+                if (!sel) return;
+                const trigger = layers?.[layer.id] ?? DEFAULT_FOUR_TRACK_FADER_LAYERS[layer.id];
+                fillFourTrackLayerSelectOptions(sel, trigger);
+                wireFourTrackLayerSelect(sel, layer.id);
+            });
+            updateBindingValidationUI();
+        }
+
+        function resolveFourTrackLayerSwap(changedLayerId, newTrigger, oldTrigger) {
+            const swapped = [];
+            const layers = readFourTrackFaderLayers();
+            for (const layer of FOUR_TRACK_FADER_LAYERS) {
+                if (layer.id === changedLayerId) continue;
+                const t = layers[layer.id];
+                if (t === newTrigger) {
+                    writeFourTrackLayerTrigger(layer.id, oldTrigger);
+                    swapped.push(layer.label);
+                }
+            }
+            return swapped;
+        }
+
+        function wireFourTrackLayerSelect(sel, layerId) {
+            if (sel.dataset.fourTrackLayerWire === '1') return;
+            sel.dataset.fourTrackLayerWire = '1';
+            sel.addEventListener('focus', () => {
+                sel.dataset.swapPrev = sel.value;
+            });
+            sel.addEventListener('change', () => {
+                const oldRaw = sel.dataset.swapPrev ?? sel.value;
+                const oldTrigger = oldRaw === 'default' ? 'default' : parseInt(oldRaw, 10);
+                const newRaw = sel.value;
+                const newTrigger = newRaw === 'default' ? 'default' : parseInt(newRaw, 10);
+                const fine = getFineModifierButton();
+                if (newTrigger !== 'default' && newTrigger === fine) {
+                    sel.value = oldRaw;
+                    showToast('That button is used for fine modifier.', 'error');
+                    return;
+                }
+                const swapped = resolveFourTrackLayerSwap(layerId, newTrigger, oldTrigger);
+                sel.dataset.swapPrev = sel.value;
+                refreshFourTrackLayerSelectOptions();
+                updateBindingValidationUI();
+                if (swapped.length) {
+                    showToast(
+                        swapped.map(n => `${n} → ${fourTrackLayerTriggerLabel(oldTrigger)}`).join(' · '),
+                        'success',
+                        4500
+                    );
+                }
+            });
+        }
+
+        function refreshFourTrackLayerSelectOptions() {
+            const layers = readFourTrackFaderLayers();
+            FOUR_TRACK_FADER_LAYERS.forEach(layer => {
+                const sel = document.querySelector(`[data-four-track-layer="${layer.id}"]`);
+                if (!sel) return;
+                const prev = sel.dataset.fourTrackLayerWire;
+                const trigger = layers[layer.id];
+                fillFourTrackLayerSelectOptions(sel, trigger);
+                if (prev) sel.dataset.fourTrackLayerWire = prev;
+            });
+        }
+
+        function analyzeFourTrackLayersScope() {
+            const layers = readFourTrackFaderLayers();
+            const byTrigger = new Map();
+            const fine = getFineModifierButton();
+            const fineConflictLayers = [];
+            for (const layer of FOUR_TRACK_FADER_LAYERS) {
+                const t = layers[layer.id];
+                if (t !== 'default' && t === fine) fineConflictLayers.push(layer.id);
+                const key = t === 'default' ? 'default' : String(t);
+                if (!byTrigger.has(key)) byTrigger.set(key, []);
+                byTrigger.get(key).push(layer.id);
+            }
+            const dupTriggers = new Set();
+            for (const [key, ids] of byTrigger) {
+                if (ids.length > 1) dupTriggers.add(key);
+            }
+            return { layers, byTrigger, dupTriggers, fineConflictLayers };
+        }
+
         function renderBindingCard(key, binding) {
             const card = document.querySelector(`[data-binding-key="${key}"]`);
             const meta = bindingMetaFor(key);
@@ -1068,10 +1245,6 @@
                 hidden.dataset.bindingPart = 'type';
                 hidden.value = fixedType;
                 fields.appendChild(hidden);
-                const typeField = document.createElement('div');
-                typeField.className = 'field binding-type-fixed';
-                typeField.innerHTML = `<label>Type</label><span class="binding-type-value">${fixedType}</span>`;
-                fields.appendChild(typeField);
             } else {
                 typeSel = document.createElement('select');
                 typeSel.dataset.bindingPart = 'type';
@@ -1207,6 +1380,14 @@
                         swapped.push(layer.label);
                     }
                 }
+                const ftLayers = readFourTrackFaderLayers();
+                for (const layer of FOUR_TRACK_FADER_LAYERS) {
+                    const t = ftLayers[layer.id];
+                    if (t !== 'default' && t === newBtn) {
+                        writeFourTrackLayerTrigger(layer.id, oldBtn);
+                        swapped.push(layer.label);
+                    }
+                }
             } else if (HOLD_BINDING_IDS().includes(changedId)) {
                 if (readButtonSlot('fine') === newBtn) {
                     writeButtonSlot('fine', oldBtn);
@@ -1227,6 +1408,11 @@
             for (const layer of FOCUS_FADER_LAYERS) {
                 const t = layers[layer.id];
                 if (t !== 'default' && t === fine) conflicts.push(layer.id);
+            }
+            const ftLayers = readFourTrackFaderLayers();
+            for (const layer of FOUR_TRACK_FADER_LAYERS) {
+                const t = ftLayers[layer.id];
+                if (t !== 'default' && t === fine) conflicts.push('ft:' + layer.id);
             }
             return { fine, conflicts };
         }
@@ -1278,7 +1464,10 @@
                     resolveFineCrossSwap(slotId, newBtn, oldBtn).forEach(n => swapped.add(n));
                 }
                 selectEl.dataset.swapPrev = selectEl.value;
-                if (slotId === 'fine') refreshFocusLayerSelectOptions();
+                if (slotId === 'fine') {
+                    refreshFocusLayerSelectOptions();
+                    refreshFourTrackLayerSelectOptions();
+                }
                 updateBindingValidationUI();
                 if (swapped.size) {
                     showToast(
@@ -1396,6 +1585,14 @@
                         if (fineCard) fineCard.classList.toggle('binding-conflict', fineConflict);
                         if (fineSel) fineSel.classList.toggle('input-conflict', fineConflict);
                         for (const id of conflicts) {
+                            if (id.startsWith('ft:')) {
+                                const layerId = id.slice(3);
+                                const card = document.querySelector(`[data-four-track-layer-card="${layerId}"]`);
+                                const sel = document.querySelector(`[data-four-track-layer="${layerId}"]`);
+                                if (card) card.classList.toggle('binding-conflict', true);
+                                if (sel) sel.classList.toggle('input-conflict', true);
+                                continue;
+                            }
                             const layer = FOCUS_FADER_LAYERS.find(l => l.id === id);
                             if (layer) {
                                 const card = document.querySelector(`[data-focus-layer-card="${id}"]`);
@@ -1413,6 +1610,10 @@
                     if (warn) {
                         if (conflicts.length) {
                             const names = conflicts.map(id => {
+                                if (id.startsWith('ft:')) {
+                                    const layer = FOUR_TRACK_FADER_LAYERS.find(l => l.id === id.slice(3));
+                                    return layer ? layer.label : id;
+                                }
                                 const layer = FOCUS_FADER_LAYERS.find(l => l.id === id);
                                 return layer ? layer.label : slotLabel(id);
                             });
@@ -1448,6 +1649,40 @@
                         }
                         for (const id of fineConflictLayers) {
                             const layer = FOCUS_FADER_LAYERS.find(l => l.id === id);
+                            parts.push(`${layer?.label ?? id}: uses fine modifier button`);
+                        }
+                        if (parts.length) {
+                            warn.textContent = `${scope.label}: ${parts.join(' · ')}.`;
+                            warn.classList.add('show');
+                        } else {
+                            warn.classList.remove('show');
+                        }
+                    }
+                } else if (scope.kind === 'four_track_layers') {
+                    const { dupTriggers, fineConflictLayers, byTrigger, layers } =
+                        analyzeFourTrackLayersScope();
+                    for (const layer of FOUR_TRACK_FADER_LAYERS) {
+                        const t = layers[layer.id];
+                        const key = t === 'default' ? 'default' : String(t);
+                        const conflict =
+                            fineConflictLayers.includes(layer.id)
+                            || (byTrigger.get(key)?.length > 1);
+                        const card = document.querySelector(`[data-four-track-layer-card="${layer.id}"]`);
+                        const sel = document.querySelector(`[data-four-track-layer="${layer.id}"]`);
+                        if (card) card.classList.toggle('binding-conflict', conflict);
+                        if (sel) sel.classList.toggle('input-conflict', conflict);
+                    }
+                    if (warn) {
+                        const parts = [];
+                        for (const key of dupTriggers) {
+                            const names = (byTrigger.get(key) || []).map(
+                                id => FOUR_TRACK_FADER_LAYERS.find(l => l.id === id)?.label ?? id
+                            );
+                            const label = key === 'default' ? 'Default' : `Button ${parseInt(key, 10) + 1}`;
+                            parts.push(`${label}: ${names.join(', ')}`);
+                        }
+                        for (const id of fineConflictLayers) {
+                            const layer = FOUR_TRACK_FADER_LAYERS.find(l => l.id === id);
                             parts.push(`${layer?.label ?? id}: uses fine modifier button`);
                         }
                         if (parts.length) {
@@ -1520,6 +1755,9 @@
                 } else if (scope.kind === 'focus_layers') {
                     const { dupTriggers, fineConflictLayers } = analyzeFocusLayersScope();
                     if (dupTriggers.size || fineConflictLayers.length) return false;
+                } else if (scope.kind === 'four_track_layers') {
+                    const { dupTriggers, fineConflictLayers } = analyzeFourTrackLayersScope();
+                    if (dupTriggers.size || fineConflictLayers.length) return false;
                 } else if (scope.kind === 'button') {
                     if (analyzeButtonScope(scope).dupButtons.size) return false;
                 } else {
@@ -1535,6 +1773,7 @@
             migrateLegacyModeKeys(settings);
             migrateLegacyOverlayBindings(settings);
             migrateLegacyFocusLayers(settings);
+            migrateLegacyFourTrackLayers(settings);
             if (!settings.USER_CC_GRID) settings.USER_CC_GRID = defaultUserCcGrid();
 
             document.getElementById('midiChannel').value = settings.MIDI_CHANNEL ?? 1;
@@ -1567,6 +1806,7 @@
                 renderBindingCard(m.key, (settings.BINDINGS || {})[m.key]);
             });
             renderFocusLayerMap(settings.FOCUS_FADER_LAYERS);
+            renderFourTrackLayerMap(settings.FOUR_TRACK_FADER_LAYERS);
             wireAllBindingValidation();
             updateBindingValidationUI();
 
@@ -1583,6 +1823,7 @@
             out.DELTA_SCALE = parseFloat(document.getElementById('deltaScale').value);
             out.USER_BANK_SWITCH_PAGE = document.getElementById('userBankSwitch').value;
             out.FOCUS_FADER_LAYERS = readFocusFaderLayers();
+            out.FOUR_TRACK_FADER_LAYERS = readFourTrackFaderLayers();
             out.PROTOCOL_VERSION = out.PROTOCOL_VERSION ?? 1;
 
             Object.assign(out, protocolFaderCcObject());
@@ -1603,7 +1844,8 @@
                 }
                 out.BINDINGS[m.key] = b;
             });
-            ['focus_overlay_1', 'focus_overlay_2', 'focus_overlay_3'].forEach(k => {
+            ['focus_overlay_1', 'focus_overlay_2', 'focus_overlay_3',
+                'four_track_overlay_1', 'four_track_overlay_2', 'four_track_overlay_3'].forEach(k => {
                 delete out.BINDINGS[k];
             });
 
