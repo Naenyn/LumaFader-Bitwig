@@ -181,7 +181,8 @@ final class FocusNavigation
       if (attempt == 0)
       {
          focusCursorTrackInUi();
-         trackDeviceBank.scrollTo(0);
+         trackDeviceBank.scrollPosition().set(0);
+         trackDeviceBank.scrollIntoView(0);
          cursorTrack.selectFirstChild();
       }
 
